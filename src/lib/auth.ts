@@ -4,67 +4,42 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 /**
- * Admin authentication.
+ * Admin sessions.
  *
- * A single shared password (the client is the only admin) is exchanged for a
- * signed, expiring session cookie. The cookie holds `<expiry>.<hmac>` — never
- * the password or the secret itself — so a leaked cookie cannot be turned back
- * into the credentials, and every session dies on its own.
+ * Admin rights come from an account whose role is "admin" - there is no
+ * separate admin password or login page. Signing in at /signin issues this
+ * cookie alongside the customer session when the account qualifies.
  *
- * In production both ADMIN_PASSWORD and ADMIN_SESSION_SECRET are required: with
- * either missing, login is refused rather than falling back to a known default.
+ * The cookie holds `<expiry>.<nonce>.<hmac>`, never a credential, so a leaked
+ * cookie cannot be turned back into a password and every session expires on its
+ * own. ADMIN_SESSION_SECRET signs it and is required in production.
  */
 
 const COOKIE = "aa_admin";
 const SESSION_DAYS = 7;
 const IS_PROD = process.env.NODE_ENV === "production";
 
-// Dev-only fallbacks so `npm run dev` works with no .env at all.
-const DEV_PASSWORD = "alcove-admin";
+// Dev-only fallback so `npm run dev` works with no .env at all.
 const DEV_SECRET = "alcove-dev-session-secret";
 
 export const ADMIN_COOKIE = COOKIE;
 export const SESSION_MAX_AGE = 60 * 60 * 24 * SESSION_DAYS;
 
-function adminPassword(): string | null {
-  const pw = process.env.ADMIN_PASSWORD?.trim();
-  if (pw) return pw;
-  return IS_PROD ? null : DEV_PASSWORD;
-}
-
 function sessionSecret(): string | null {
   const secret = process.env.ADMIN_SESSION_SECRET?.trim();
   if (secret) return secret;
-  // Falling back to the password still gives a per-deployment secret; only in
-  // dev do we accept a hard-coded one.
-  const pw = process.env.ADMIN_PASSWORD?.trim();
-  if (pw) return `derived:${pw}`;
+  // Kept as a fallback so an older deployment that only set ADMIN_PASSWORD
+  // doesn't have every admin session invalidated on deploy.
+  const legacy = process.env.ADMIN_PASSWORD?.trim();
+  if (legacy) return `derived:${legacy}`;
   return IS_PROD ? null : DEV_SECRET;
-}
-
-/**
- * True when the admin area is usable. False in production until the client sets
- * ADMIN_PASSWORD — the login page shows a setup notice instead of a form.
- */
-export function isAdminConfigured(): boolean {
-  return adminPassword() !== null && sessionSecret() !== null;
 }
 
 /** Compare two secrets without leaking their length or contents via timing. */
 function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "utf8");
-  const bufB = Buffer.from(b, "utf8");
-  // timingSafeEqual throws on length mismatch, so hash to a fixed width first.
-  const hashA = createHmac("sha256", "cmp").update(bufA).digest();
-  const hashB = createHmac("sha256", "cmp").update(bufB).digest();
+  const hashA = createHmac("sha256", "cmp").update(Buffer.from(a, "utf8")).digest();
+  const hashB = createHmac("sha256", "cmp").update(Buffer.from(b, "utf8")).digest();
   return timingSafeEqual(hashA, hashB);
-}
-
-/** Password check. Always false in production when ADMIN_PASSWORD is unset. */
-export function checkPassword(pw: unknown): boolean {
-  const expected = adminPassword();
-  if (!expected || typeof pw !== "string" || pw.length === 0) return false;
-  return safeEqual(pw, expected);
 }
 
 function sign(payload: string, secret: string): string {
@@ -96,10 +71,9 @@ export function verifySessionToken(token: string | undefined): boolean {
 /**
  * True if the current request carries admin rights.
  *
- * Either the admin cookie (set when an admin signs in, and by the
- * shared-password fallback at /admin/login) or a signed-in account whose role
- * is admin. Checking both means promoting someone takes effect on their next
- * request rather than only after they sign in again.
+ * Either the admin cookie, issued at sign-in, or a signed-in account whose role
+ * is admin. Checking the role too means promoting someone takes effect on their
+ * next request rather than only after they sign in again.
  */
 export async function isAdmin(): Promise<boolean> {
   const store = await cookies();
@@ -117,8 +91,7 @@ export async function isAdmin(): Promise<boolean> {
  *
  * Signed in but not an admin -> 404, not "forbidden". A 403 confirms the page
  * exists, which tells a curious customer exactly what to go looking for; a 404
- * says nothing at all. It is also less confusing than bouncing an already
- * signed-in person back to a sign-in form they have already used.
+ * says nothing at all.
  */
 export async function requireAdmin(nextPath = "/admin"): Promise<void> {
   if (await isAdmin()) return;

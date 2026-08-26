@@ -50,9 +50,8 @@ npm run dev            # http://localhost:3000
 
 - **Storefront:** http://localhost:3000
 - **Admin CMS:** http://localhost:3000/admin — sign in at `/signin` with an
-  admin account (`npm run make:admin`, see below). `/admin/login` remains as a
-  shared-password fallback; in production `ADMIN_PASSWORD` is required and there
-  is no default.
+  admin account (`npm run make:admin`, see below). There is no separate admin
+  login page or shared admin password: rights come from the account's role.
 
 ### Handy scripts
 | Script | Purpose |
@@ -79,8 +78,7 @@ commented list.
 | `DATABASE_URL` | Supabase pooled connection (port 6543) |
 | `DIRECT_URL` | Supabase direct connection (port 5432), migrations only |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URLs, sitemap, OG tags — wrong value breaks SEO |
-| `ADMIN_PASSWORD` | Admin login is refused without it |
-| `ADMIN_SESSION_SECRET` | Signs the admin session cookie |
+| `ADMIN_SESSION_SECRET` | Signs the session cookies |
 
 Everything else is optional — those features degrade gracefully.
 
