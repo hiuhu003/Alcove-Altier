@@ -31,6 +31,18 @@ function siteUrl(): string {
   return "http://localhost:3000";
 }
 
+/** The shop's number in E.164. NEXT_PUBLIC_PHONE overrides it per deployment. */
+const PHONE_E164 = process.env.NEXT_PUBLIC_PHONE?.trim() || "+254143957633";
+
+/** +254143957633 -> "+254 143 957633", the way it is written locally. */
+function formatPhone(e164: string): string {
+  const digits = e164.replace(/[^0-9]/g, "");
+  if (digits.startsWith("254") && digits.length === 12) {
+    return `+254 ${digits.slice(3, 6)} ${digits.slice(6)}`;
+  }
+  return e164;
+}
+
 export const SITE = {
   name: "Alcove Atelier",
   legalName: "Alcove Atelier",
@@ -46,14 +58,17 @@ export const SITE = {
   country: "Kenya",
   city: "Nairobi", // TODO: confirm exact town/area with client
 
-  // --- Contact (TODO: confirm real values with client) ---
-  phoneDisplay: "+254 7XX XXX XXX",
-  phoneE164: process.env.NEXT_PUBLIC_PHONE || "+2547XXXXXXXX",
-  email: process.env.NEXT_PUBLIC_EMAIL || "hello@alcoveatelier.co.ke",
+  // --- Contact ---
+  // Display is derived from the dialling number so the two can never drift
+  // apart - a shown number that differs from the one tel: dials is worse than
+  // no number at all.
+  phoneDisplay: formatPhone(PHONE_E164),
+  phoneE164: PHONE_E164,
+  email: process.env.NEXT_PUBLIC_EMAIL || "alcoveatelierke@gmail.com",
 
-  // WhatsApp: the number in international format WITHOUT the leading "+".
-  // From their IG "click to chat" link. Confirm exact number with client.
-  whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "2547XXXXXXXX",
+  // WhatsApp: international format WITHOUT the leading "+".
+  whatsappNumber:
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || PHONE_E164.replace(/[^0-9]/g, ""),
   whatsappShortLink: "https://wa.me/message/U6X3OMPJ7EMXP1",
 
   socials: {

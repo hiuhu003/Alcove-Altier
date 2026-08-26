@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   BarChart3,
   ArrowRight,
+  MessageSquare,
 } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -23,7 +24,7 @@ export default async function AdminDashboard() {
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
 
-  const [orderCount, newOrders, productCount, paidAgg, monthAgg, lowStock, recent] =
+  const [orderCount, newOrders, productCount, paidAgg, monthAgg, lowStock, recent, messages] =
     await Promise.all([
       prisma.order.count(),
       prisma.order.count({ where: { status: "new" } }),
@@ -47,6 +48,11 @@ export default async function AdminDashboard() {
         orderBy: { createdAt: "desc" },
         take: 6,
         include: { items: true },
+      }),
+      prisma.contactMessage.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, name: true, email: true, message: true, createdAt: true },
       }),
     ]);
 
@@ -185,6 +191,43 @@ export default async function AdminDashboard() {
                         {p.inStock <= 0 ? "Out of stock" : `${p.inStock} left`}
                       </span>
                     </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Contact form enquiries. Stored as well as emailed, so nothing is
+              lost while a mail provider is still being set up. */}
+          <div className="rounded-2xl border border-charcoal/10 bg-cream p-5">
+            <h2 className="mb-4 flex items-center gap-2 font-serif text-xl">
+              <MessageSquare className="h-4 w-4 text-pink-strong" />
+              Messages
+            </h2>
+            {messages.length === 0 ? (
+              <p className="py-8 text-center text-sm text-graphite">
+                No messages from the contact form yet.
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {messages.map((m) => (
+                  <li key={m.id} className="border-b border-charcoal/5 pb-3 last:border-0 last:pb-0">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm font-medium">{m.name}</span>
+                      <span className="shrink-0 text-xs text-graphite">
+                        {new Date(m.createdAt).toLocaleDateString("en-KE", {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 line-clamp-2 text-sm text-graphite">{m.message}</p>
+                    <a
+                      href={`mailto:${m.email}?subject=${encodeURIComponent("Re: your message to Alcove Atelier")}`}
+                      className="mt-1 inline-block text-xs text-pink-strong hover:underline"
+                    >
+                      Reply to {m.email}
+                    </a>
                   </li>
                 ))}
               </ul>

@@ -145,6 +145,23 @@ model Review {
   @@index([productId, published, createdAt])
 }
 
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  message   String
+  // Set when sent by a signed-in customer.
+  userId    String?
+  // Whether the notification email actually went out. Messages are stored
+  // either way, so an unconfigured mail provider never loses an enquiry.
+  emailed   Boolean  @default(false)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   type      String // order.new | order.paid | stock.out | stock.low

@@ -159,7 +159,12 @@ async function getSmtpTransport() {
 }
 
 /** Sends one email. Never throws — callers treat email as fire-and-forget. */
-async function send(to: string, subject: string, html: string): Promise<boolean> {
+async function send(
+  to: string,
+  subject: string,
+  html: string,
+  options?: { replyTo?: string }
+): Promise<boolean> {
   if (!to) return false;
   const transport = emailTransport();
 
@@ -171,13 +176,25 @@ async function send(to: string, subject: string, html: string): Promise<boolean>
   try {
     if (transport === "smtp") {
       const mailer = await getSmtpTransport();
-      await mailer.sendMail({ from: fromAddress(), to, subject, html });
+      await mailer.sendMail({
+        from: fromAddress(),
+        to,
+        subject,
+        html,
+        replyTo: options?.replyTo,
+      });
       return true;
     }
 
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY!);
-    const { error } = await resend.emails.send({ from: fromAddress(), to, subject, html });
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to,
+      subject,
+      html,
+      ...(options?.replyTo ? { replyTo: options.replyTo } : {}),
+    });
     if (error) {
       console.error(`[email] "${subject}" to ${to} rejected:`, error.message);
       return false;
@@ -528,5 +545,43 @@ export async function sendAdminInviteEmail(invite: {
         </p>`,
       cta: { label: "Sign in to the dashboard", url: `${SITE.url}/signin` },
     })
+  );
+}
+
+// --- Contact form --------------------------------------------------------------
+
+/**
+ * A note from the contact form, sent to the shop.
+ *
+ * Reply-To is the sender, so hitting reply in Gmail goes straight back to the
+ * customer rather than to the shop's own address.
+ */
+export async function sendContactMessageEmail(message: {
+  name: string;
+  email: string;
+  body: string;
+}): Promise<boolean> {
+  const to = process.env.ORDER_NOTIFY_EMAIL || SITE.email;
+
+  return send(
+    to,
+    `New message from ${message.name}`,
+    layout({
+      heading: "New message from the website",
+      intro: `${escapeHtml(message.name)} sent this through the contact form.`,
+      body: `
+        <div style="background:${BRAND.sand};border-radius:12px;padding:16px 18px">
+          <p style="margin:0;white-space:pre-wrap;font-size:14px;line-height:1.7;color:${BRAND.charcoal}">${escapeHtml(
+            message.body
+          )}</p>
+        </div>
+        <p style="margin:16px 0 0;font-size:14px;line-height:1.7;color:${BRAND.charcoal}">
+          <strong>From:</strong> ${escapeHtml(message.name)}<br/>
+          <strong>Email:</strong> <a href="mailto:${escapeHtml(message.email)}" style="color:${BRAND.pink}">${escapeHtml(
+            message.email
+          )}</a>
+        </p>`,
+    }),
+    { replyTo: message.email }
   );
 }

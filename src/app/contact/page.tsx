@@ -99,17 +99,6 @@ export default function ContactPage() {
                 </span>
               </div>
             </div>
-
-            {/* Map */}
-            <div className="mt-6 overflow-hidden rounded-2xl border border-charcoal/10">
-              <iframe
-                title="Alcove Atelier location"
-                src="https://www.google.com/maps?q=Nairobi,Kenya&output=embed"
-                className="h-64 w-full"
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-            </div>
           </div>
 
           {/* Form */}

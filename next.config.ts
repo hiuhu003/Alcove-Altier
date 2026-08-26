@@ -39,8 +39,7 @@ const csp = [
   ]
     .filter(Boolean)
     .join(" "),
-  // google.com/maps: the location embed on /contact.
-  `frame-src https://www.google.com https://maps.google.com https://js.stripe.com https://www.paypal.com`,
+  `frame-src https://js.stripe.com https://www.paypal.com`,
   `upgrade-insecure-requests`,
 ]
   .filter(Boolean)
