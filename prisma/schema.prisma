@@ -61,9 +61,30 @@ model Category {
   updatedAt DateTime @updatedAt
 }
 
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  phone        String?
+  // scrypt hash - see src/lib/users.ts. Never store the password itself.
+  passwordHash String
+  role         String   @default("customer") // customer | admin
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([role])
+}
+
 model Order {
   id            String   @id @default(cuid())
   ref           String   @unique
+  // Set when the order was placed while signed in. Guest checkout stays
+  // supported, so this is optional and those orders are found by ref + email.
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerName  String
   email         String
   phone         String
@@ -89,6 +110,7 @@ model Order {
   items OrderItem[]
 
   @@index([createdAt])
+  @@index([userId])
   @@index([status])
   @@index([paymentStatus])
   @@index([deliveryZone])

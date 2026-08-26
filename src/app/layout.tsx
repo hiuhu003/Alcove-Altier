@@ -7,6 +7,7 @@ import { WhatsAppFloat } from "@/components/layout/WhatsAppFloat";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { StoreChrome } from "@/components/layout/StoreChrome";
 import { Analytics } from "@/components/Analytics";
+import { FeedbackProvider } from "@/components/ui/Feedback";
 import { baseMetadata, jsonLdScript, localBusinessJsonLd, webSiteJsonLd } from "@/lib/seo";
 
 const serif = Cormorant_Garamond({
@@ -43,6 +44,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(webSiteJsonLd()) }}
         />
+        <FeedbackProvider>
         <StoreChrome
           header={<Header />}
           footer={<Footer />}
@@ -51,6 +53,7 @@ export default function RootLayout({
         >
           {children}
         </StoreChrome>
+        </FeedbackProvider>
         <Analytics />
       </body>
     </html>

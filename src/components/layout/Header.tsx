@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, Search, ShoppingBag, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
+import { AccountMenu } from "@/components/auth/AccountMenu";
 import { NAV_LINKS } from "@/lib/site";
 import { cartCount, useCart } from "@/store/cart";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,7 @@ export function Header() {
             >
               <Search className="h-[18px] w-[18px]" strokeWidth={1.6} />
             </Link>
+            <AccountMenu />
             <button
               onClick={openCart}
               aria-label="Open cart"
@@ -140,6 +142,29 @@ export function Header() {
                   </Link>
                 </motion.div>
               ))}
+
+              {/* Account + tracking, reachable without hunting for the icon */}
+              <motion.div
+                initial={{ opacity: 0, x: 30 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.08 + NAV_LINKS.length * 0.06 }}
+                className="mt-6 flex items-center gap-3"
+              >
+                <Link
+                  href="/account"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex h-12 flex-1 items-center justify-center rounded-full bg-charcoal px-5 text-sm font-medium text-cream"
+                >
+                  My account
+                </Link>
+                <Link
+                  href="/track"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex h-12 flex-1 items-center justify-center rounded-full border border-charcoal/20 px-5 text-sm font-medium"
+                >
+                  Track order
+                </Link>
+              </motion.div>
             </nav>
           </motion.div>
         )}

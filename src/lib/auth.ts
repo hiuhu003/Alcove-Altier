@@ -99,9 +99,15 @@ export async function isAdmin(): Promise<boolean> {
   return verifySessionToken(store.get(COOKIE)?.value);
 }
 
-/** Redirects to the login page if not authenticated (for server pages). */
+/**
+ * Redirects to the sign-in page if not authenticated (for server pages).
+ *
+ * Admins sign in through the same form as customers - their role is what sends
+ * them here rather than to /account. /admin/login remains as a shared-password
+ * fallback in case no admin account exists yet.
+ */
 export async function requireAdmin(): Promise<void> {
-  if (!(await isAdmin())) redirect("/admin/login");
+  if (!(await isAdmin())) redirect("/signin?next=/admin");
 }
 
 /** For API routes: returns true if authorised. */

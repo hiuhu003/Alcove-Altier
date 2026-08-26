@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
+import { useFeedback } from "@/components/ui/Feedback";
 
 type Category = {
   id: string;
@@ -19,6 +20,7 @@ const emptyForm = (): Form => ({ name: "", blurb: "", image: "" });
 
 export function CategoriesManager() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const { toast, confirm } = useFeedback();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Form | null>(null);
 
@@ -34,9 +36,22 @@ export function CategoriesManager() {
   }, []);
 
   async function remove(id: string) {
-    if (!confirm("Delete this category? Products in it will keep their tag but the category page/filter will disappear.")) return;
-    await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
+    const category = categories.find((c) => c.id === id);
+    const ok = await confirm({
+      title: `Delete ${category?.name ?? "this category"}?`,
+      body: "Products in it keep their tag, but the category disappears from the shop filters, the home page and the footer.",
+      confirmLabel: "Delete category",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const res = await fetch(`/api/admin/categories/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.error("Could not delete that category", "Please try again.");
+      return;
+    }
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    toast.success("Category deleted", category?.name);
   }
 
   return (

@@ -4,6 +4,7 @@ import { prisma } from "./prisma";
 import { sendOrderEmails } from "./email";
 import { notifyNewOrder, notifyOrderPaid, reviewStockFor } from "./notifications";
 import { getZone } from "./delivery";
+import { PublicError } from "./errors";
 
 export const orderItemSchema = z.object({
   productId: z.string().optional(),
@@ -69,14 +70,16 @@ export async function adjustStock(
   return touched;
 }
 
-export async function createOrder(input: CreateOrderInput) {
+export async function createOrder(input: CreateOrderInput, userId?: string | null) {
   const data = createOrderSchema.parse(input);
   const zone = getZone(data.deliveryZone);
 
   // Pay on delivery is only offered where we deliver ourselves.
   if (data.channel === "cod" && !zone.payOnDelivery) {
-    throw new Error(
-      "Payment on delivery is only available in Nairobi & environs. Please choose another payment method."
+    // PublicError, not Error: this is a rule the customer can act on, so the
+    // API passes the message straight through instead of masking it as a fault.
+    throw new PublicError(
+      "Pay on delivery is only available in Nairobi & environs. For deliveries outside Nairobi, please order on WhatsApp or pay via M-Pesa."
     );
   }
 
@@ -86,6 +89,9 @@ export async function createOrder(input: CreateOrderInput) {
   const order = await prisma.order.create({
     data: {
       ref,
+      // Ties the order to an account when one is signed in, so it shows up in
+      // their history. Guest orders leave this null and are found by ref+email.
+      userId: userId ?? null,
       customerName: data.customerName,
       email: data.email,
       phone: data.phone,

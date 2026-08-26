@@ -28,9 +28,11 @@ and analytics light up when the client adds those keys.
 | 11 | Inventory & order mgmt + email alerts | ✅ Stock tracking, orders, Resend emails |
 | 12 | User-friendly CMS dashboard | ✅ `/admin` — add/edit products & images, manage orders |
 | 13 | Google Analytics | ✅ Add `NEXT_PUBLIC_GA_ID` to enable |
+| 14 | Customer accounts & order tracking | ✅ Sign in/up, order history, guest tracking |
 
 Plus: WhatsApp-first checkout for bespoke pieces, order confirmation emails,
-branded 404, reduced-motion support.
+branded 404, reduced-motion support, and in-site toasts/dialogs instead of
+browser popups.
 
 ---
 
@@ -47,8 +49,10 @@ npm run dev            # http://localhost:3000
 ```
 
 - **Storefront:** http://localhost:3000
-- **Admin CMS:** http://localhost:3000/admin (dev password: `alcove-admin`;
-  in production `ADMIN_PASSWORD` is required and there is no default)
+- **Admin CMS:** http://localhost:3000/admin — sign in at `/signin` with an
+  admin account (`npm run make:admin`, see below). `/admin/login` remains as a
+  shared-password fallback; in production `ADMIN_PASSWORD` is required and there
+  is no default.
 
 ### Handy scripts
 | Script | Purpose |
@@ -158,6 +162,39 @@ Orders that arrive while the admin has the dashboard open also pop a toast.
 Stock is decremented when an order is placed and put back if the order is
 cancelled or deleted, so the alerts track real availability. Stock alerts are
 de-duplicated and clear themselves as soon as the product is restocked.
+
+---
+
+## 👤 Customer accounts & order tracking
+
+Shoppers can order as a guest or create an account. One sign-in form serves
+everyone — `/signin` — and the account's **role** decides where it lands:
+customers go to `/account`, admins go straight to `/admin`. There is no separate
+admin URL to remember.
+
+- **`/signup`** — name, email, optional phone, password (8+ characters).
+  Any guest orders already placed with that email are adopted into the account.
+- **`/account`** — order history, each with a progress tracker
+  (Order received → Confirmed → Delivered), what is still owed, delivery zone
+  and a WhatsApp button to ask about that specific order.
+- **`/track`** — guest tracking by order reference **plus** the email it was
+  placed with. Both are required: a five-character reference alone would let
+  anyone page through other people's orders.
+- Signing in prefills checkout, and orders placed while signed in appear in the
+  account automatically.
+
+Passwords are hashed with **scrypt** from Node's own crypto module (not
+bcrypt/argon2, which are native modules that complicate serverless builds).
+Sessions are signed, expiring cookies that never contain the password.
+
+Create or promote an admin:
+
+```bash
+npm run make:admin -- "someone@example.com" "a-strong-password" "Their Name"
+```
+
+Safe to re-run — it promotes an existing account and resets its password rather
+than creating a duplicate.
 
 ---
 

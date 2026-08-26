@@ -6,6 +6,7 @@ import { ImagePlus, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "luc
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn, formatKES, slugify } from "@/lib/utils";
 import { matchesStockFilter, stockState, type StockFilter } from "@/lib/stock";
+import { useFeedback } from "@/components/ui/Feedback";
 
 type Cat = { slug: string; name: string };
 
@@ -86,6 +87,7 @@ export function ProductsManager({
   const [query, setQuery] = useState(initialQuery);
   const [stockFilter, setStockFilter] = useState<StockFilter>(initialStock);
   const [editing, setEditing] = useState<FormState | null>(null);
+  const { toast, confirm } = useFeedback();
 
   async function load() {
     setLoading(true);
@@ -153,9 +155,24 @@ export function ProductsManager({
   }
 
   async function remove(id: string) {
-    if (!confirm("Delete this product? This cannot be undone.")) return;
-    await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
+    const product = products.find((p) => p.id === id);
+    // Name the piece being deleted - a generic "are you sure?" is how the wrong
+    // row gets removed.
+    const ok = await confirm({
+      title: `Delete ${product?.name ?? "this product"}?`,
+      body: "It will disappear from the shop straight away. Past orders keep their record of it. This cannot be undone.",
+      confirmLabel: "Delete product",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    const res = await fetch(`/api/admin/products/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      toast.error("Could not delete that product", "Please try again.");
+      return;
+    }
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    toast.success("Product deleted", product?.name);
   }
 
   return (

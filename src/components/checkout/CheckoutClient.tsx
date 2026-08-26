@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -51,10 +51,35 @@ export function CheckoutClient() {
     notes: "",
   });
   const [mpesaCode, setMpesaCode] = useState("");
+  const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const zone = getZone(zoneKey);
+
+  // Prefill from the signed-in account so returning customers don't retype
+  // their details. Anything already typed is left alone.
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!active || !d.user) return;
+        setSignedIn(true);
+        setForm((f) => ({
+          ...f,
+          customerName: f.customerName || d.user.name || "",
+          email: f.email || d.user.email || "",
+          phone: f.phone || d.user.phone || "",
+        }));
+      })
+      .catch(() => {
+        /* guest checkout - nothing to prefill */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -75,11 +100,11 @@ export function CheckoutClient() {
     if (!getZone(key).payOnDelivery && method === "cod") setMethod("whatsapp");
   }
 
-  async function createOrder() {
+  async function createOrder(payMethod: Method = method) {
     // For manual M-Pesa, record the Paybill + confirmation code in the notes so
     // the business can reconcile the payment from the admin dashboard.
     const paybillNote =
-      method === "mpesa"
+      payMethod === "mpesa"
         ? `\n[M-Pesa Paybill ${SITE.mpesa.paybill}, Acc ${SITE.mpesa.account}${
             mpesaCode ? ` · Code: ${mpesaCode}` : " · code pending"
           }]`
@@ -90,7 +115,7 @@ export function CheckoutClient() {
       body: JSON.stringify({
         ...form,
         notes: `${form.notes}${paybillNote}`.trim(),
-        channel: method,
+        channel: payMethod,
         deliveryZone: zoneKey,
         deliveryArea: form.city,
         items: items.map((i) => ({
@@ -123,18 +148,23 @@ export function CheckoutClient() {
       );
       return;
     }
+    // The zone picker already swaps away from pay-on-delivery when you leave
+    // Nairobi, but never send a combination the server will refuse.
+    const payMethod: Method = method === "cod" && !zone.payOnDelivery ? "whatsapp" : method;
+    if (payMethod !== method) setMethod(payMethod);
+
     setLoading(true);
     try {
-      const ref = await createOrder();
+      const ref = await createOrder(payMethod);
 
-      if (method === "cod") {
+      if (payMethod === "cod") {
         // Payment happens at the door — we just confirm the order and call.
         clear();
         router.push(`/checkout/success?ref=${ref}&method=cod`);
         return;
       }
 
-      if (method === "whatsapp") {
+      if (payMethod === "whatsapp") {
         const link = cartEnquiry(items, total, ref);
         clear();
         window.open(link, "_blank");
@@ -173,6 +203,20 @@ export function CheckoutClient() {
       <div className="grid gap-12 lg:grid-cols-[1.3fr_1fr]">
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-10">
+          {!signedIn && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-charcoal/10 bg-white/50 px-5 py-4">
+              <p className="text-sm text-graphite">
+                Have an account? Sign in to fill this in automatically.
+              </p>
+              <Link
+                href="/signin?next=/checkout"
+                className="text-sm font-medium text-pink-strong underline underline-offset-4"
+              >
+                Sign in
+              </Link>
+            </div>
+          )}
+
           <section>
             <h2 className="mb-5 font-serif text-2xl">Your details</h2>
             <div className="grid gap-4 sm:grid-cols-2">

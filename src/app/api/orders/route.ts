@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createOrder } from "@/lib/orders";
+import { isPublicError } from "@/lib/errors";
+import { getCurrentUser } from "@/lib/users";
 import { isSameOrigin, forbidden } from "@/lib/http";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
@@ -21,11 +23,17 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const order = await createOrder(body);
+    // The account comes from the session cookie, never from the request body -
+    // a client must not be able to file an order under someone else's account.
+    const user = await getCurrentUser();
+    const order = await createOrder(body, user?.id);
     return NextResponse.json({ ok: true, ref: order.ref, id: order.id });
   } catch (err) {
-    // Validation problems are the customer's to fix, so surface those. Anything
-    // else (database, network) stays generic — internals never reach the client.
+    // A rule the customer can act on (wrong delivery zone, etc.) is surfaced
+    // verbatim; faults stay generic so internals never reach the browser.
+    if (isPublicError(err)) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: err.status });
+    }
     if (err instanceof z.ZodError) {
       const message = err.issues[0]?.message ?? "Please check your details.";
       return NextResponse.json({ ok: false, error: message }, { status: 400 });

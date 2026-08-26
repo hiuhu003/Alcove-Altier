@@ -70,6 +70,18 @@
     letter-spacing: -0.01em;
   }
 
+  /*
+   * Cormorant Garamond ships oldstyle figures by default, where "1" is drawn
+   * at x-height and reads as a capital I - so a stat card showing 1 order
+   * looked like "I". Lining figures fix that; tabular keeps columns of prices
+   * aligned.
+   */
+  .font-serif,
+  h1, h2, h3, h4 {
+    font-variant-numeric: lining-nums tabular-nums;
+    font-feature-settings: "lnum" 1, "tnum" 1;
+  }
+
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: var(--color-sand); }
   ::-webkit-scrollbar-thumb {
