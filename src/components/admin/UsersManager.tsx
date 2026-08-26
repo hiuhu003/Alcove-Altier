@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Mail, Plus, Search, ShieldCheck, ShieldOff, X } from "lucide-react";
+import { Check, Loader2, Mail, Plus, Search, Send, ShieldCheck, ShieldOff, X } from "lucide-react";
 import { useFeedback } from "@/components/ui/Feedback";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,8 @@ export function UsersManager() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -57,6 +59,27 @@ export function UsersManager() {
         )
       : list;
 
+  /** Proves email setup without having to place a real order. */
+  async function sendTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/email-test", { method: "POST" });
+      const data = await res.json();
+      setTestResult({ ok: Boolean(data.ok), detail: data.detail ?? data.error ?? "" });
+      if (data.ok) {
+        toast.success("Test email sent", `Check ${data.to}`);
+        setEmailConfigured(true);
+      } else {
+        toast.error("Test email failed", "See the details below.");
+      }
+    } catch {
+      setTestResult({ ok: false, detail: "Couldn't reach the server." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function revoke(person: Person) {
     const ok = await confirm({
       title: `Remove admin access for ${person.name}?`,
@@ -80,17 +103,55 @@ export function UsersManager() {
 
   return (
     <div>
-      {!emailConfigured && (
-        <div className="mb-5 rounded-2xl border border-coral/30 bg-coral/10 px-5 py-4 text-sm">
-          <p className="font-medium text-charcoal">Email isn&apos;t connected yet</p>
-          <p className="mt-1 text-graphite">
-            New admins are created straight away, but they won&apos;t receive their
-            sign-in details automatically — you&apos;ll need to pass those on yourself.
-            Add <code className="rounded bg-white/70 px-1">RESEND_API_KEY</code> to
-            enable emails.
-          </p>
+      {/* Email setup — order confirmations, status updates, review invitations
+          and admin invitations all go through here. */}
+      <div className="mb-6 rounded-2xl border border-charcoal/10 bg-cream px-5 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-medium text-charcoal">
+              <Mail className="h-4 w-4 text-pink-strong" />
+              Email
+              {emailConfigured ? (
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                  Connected
+                </span>
+              ) : (
+                <span className="rounded-full bg-coral/15 px-2 py-0.5 text-xs font-medium text-coral">
+                  Not connected
+                </span>
+              )}
+            </p>
+            <p className="mt-1 text-sm text-graphite">
+              {emailConfigured
+                ? "Order confirmations, delivery updates, review invitations and admin invitations are sent automatically."
+                : "Messages are being logged instead of sent. New admins are still created — you'll just need to pass their details on yourself."}
+            </p>
+          </div>
+          <button
+            onClick={sendTest}
+            disabled={testing}
+            className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-charcoal/20 px-4 text-sm transition-colors hover:border-charcoal disabled:opacity-60"
+          >
+            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Send me a test
+          </button>
         </div>
-      )}
+        {testResult && (
+          <p
+            className={cn(
+              "mt-3 flex items-start gap-2 rounded-xl px-4 py-3 text-sm",
+              testResult.ok ? "bg-emerald-50 text-emerald-900" : "bg-coral/10 text-charcoal"
+            )}
+          >
+            {testResult.ok ? (
+              <Check className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <X className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <span>{testResult.detail}</span>
+          </p>
+        )}
+      </div>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[220px] flex-1">

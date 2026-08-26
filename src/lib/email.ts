@@ -47,33 +47,174 @@ export type OrderEmailData = {
 
 // --- Plumbing ----------------------------------------------------------------
 
+/**
+ * Which way out the messages go.
+ *
+ * "smtp"   - Gmail (or any SMTP server). Sends as the authenticated mailbox, so
+ *            it works with a plain Gmail address and no domain of your own.
+ * "resend" - Resend's API. Needs a domain you control, verified with them.
+ * "none"   - nothing configured; messages are logged instead of sent so the
+ *            shop still works.
+ *
+ * SMTP is checked first: if someone has gone to the trouble of setting an app
+ * password, that is the address they want mail to come from.
+ */
+export type EmailTransport = "smtp" | "resend" | "none";
+
+export function emailTransport(): EmailTransport {
+  if (process.env.SMTP_USER && process.env.SMTP_PASSWORD) return "smtp";
+  if (process.env.RESEND_API_KEY) return "resend";
+  return "none";
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+  return emailTransport() !== "none";
+}
+
+/**
+ * The From address.
+ *
+ * Gmail rewrites this header to the authenticated mailbox regardless of what we
+ * ask for, so on SMTP we use that address directly rather than pretending — a
+ * mismatched From is what gets mail marked as spoofed.
+ */
+function fromAddress(): string {
+  const explicit = process.env.EMAIL_FROM?.trim();
+  const transport = emailTransport();
+
+  if (transport === "smtp") {
+    const mailbox = process.env.SMTP_USER!;
+    // Honour a display name, but keep the address Gmail will actually use.
+    if (explicit?.includes(mailbox)) return explicit;
+    return `${SITE.name} <${mailbox}>`;
+  }
+
+  return explicit || `${SITE.name} <orders@${new URL(SITE.url).hostname}>`;
+}
+
+/** Reusable connection — a serverless instance may send several in one request. */
+let smtpTransport: import("nodemailer").Transporter | null = null;
+
+async function getSmtpTransport() {
+  if (smtpTransport) return smtpTransport;
+  const nodemailer = await import("nodemailer");
+
+  const port = Number(process.env.SMTP_PORT || 465);
+  smtpTransport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port,
+    // 465 is implicit TLS; 587 upgrades with STARTTLS.
+    secure: port === 465,
+    auth: {
+      user: process.env.SMTP_USER!,
+      // Google shows app passwords in groups of four; the spaces are display
+      // only and must not be sent.
+      pass: (process.env.SMTP_PASSWORD ?? "").replace(/\s+/g, ""),
+    },
+  });
+  return smtpTransport;
 }
 
 /** Sends one email. Never throws — callers treat email as fire-and-forget. */
 async function send(to: string, subject: string, html: string): Promise<boolean> {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) {
+  if (!to) return false;
+  const transport = emailTransport();
+
+  if (transport === "none") {
     console.log(`[email] not configured - would send "${subject}" to ${to}`);
     return false;
   }
-  if (!to) return false;
 
   try {
+    if (transport === "smtp") {
+      const mailer = await getSmtpTransport();
+      await mailer.sendMail({ from: fromAddress(), to, subject, html });
+      return true;
+    }
+
     const { Resend } = await import("resend");
-    const resend = new Resend(key);
-    const from =
-      process.env.EMAIL_FROM || `${SITE.name} <orders@${new URL(SITE.url).hostname}>`;
-    const { error } = await resend.emails.send({ from, to, subject, html });
+    const resend = new Resend(process.env.RESEND_API_KEY!);
+    const { error } = await resend.emails.send({ from: fromAddress(), to, subject, html });
     if (error) {
       console.error(`[email] "${subject}" to ${to} rejected:`, error.message);
       return false;
     }
     return true;
   } catch (err) {
-    console.error(`[email] "${subject}" to ${to} failed:`, err);
+    // A dead connection must not be reused for the next message.
+    smtpTransport = null;
+    console.error(`[email] "${subject}" to ${to} failed:`, err instanceof Error ? err.message : err);
     return false;
+  }
+}
+
+/**
+ * Sends a test message and reports what happened, for the setup screen.
+ * Unlike send() this surfaces the error text — the admin needs to read it.
+ */
+export async function sendTestEmail(to: string): Promise<{ ok: boolean; detail: string }> {
+  const transport = emailTransport();
+  if (transport === "none") {
+    return {
+      ok: false,
+      detail:
+        "No email provider is configured. Add SMTP_USER and SMTP_PASSWORD (Gmail app password), or RESEND_API_KEY.",
+    };
+  }
+
+  try {
+    if (transport === "smtp") {
+      const mailer = await getSmtpTransport();
+      await mailer.verify(); // proves the credentials before sending anything
+      await mailer.sendMail({
+        from: fromAddress(),
+        to,
+        subject: `Test email from ${SITE.name}`,
+        html: layout({
+          heading: "Email is working",
+          intro: `This is a test message from your ${SITE.name} dashboard.`,
+          body: `<p style="margin:0;font-size:14px;color:${BRAND.graphite}">
+                   Sent via ${escapeHtml(process.env.SMTP_HOST || "smtp.gmail.com")} as
+                   ${escapeHtml(fromAddress())}. Order confirmations, status updates and
+                   review invitations will arrive the same way.
+                 </p>`,
+        }),
+      });
+      return { ok: true, detail: `Sent from ${fromAddress()} via SMTP.` };
+    }
+
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY!);
+    const { error } = await resend.emails.send({
+      from: fromAddress(),
+      to,
+      subject: `Test email from ${SITE.name}`,
+      html: layout({
+        heading: "Email is working",
+        intro: `This is a test message from your ${SITE.name} dashboard.`,
+        body: "",
+      }),
+    });
+    if (error) return { ok: false, detail: error.message };
+    return { ok: true, detail: `Sent from ${fromAddress()} via Resend.` };
+  } catch (err) {
+    smtpTransport = null;
+    const message = err instanceof Error ? err.message : String(err);
+    // Translate the two failures people actually hit.
+    if (/Invalid login|Username and Password not accepted|BadCredentials/i.test(message)) {
+      return {
+        ok: false,
+        detail:
+          "Gmail rejected those credentials. Use a 16-character App Password (not your normal Gmail password), and make sure 2-Step Verification is on for that account.",
+      };
+    }
+    if (/ETIMEDOUT|ECONNREFUSED|ENOTFOUND/i.test(message)) {
+      return {
+        ok: false,
+        detail: `Couldn't reach the mail server (${message}). Check SMTP_HOST and SMTP_PORT.`,
+      };
+    }
+    return { ok: false, detail: message };
   }
 }
 

@@ -210,9 +210,23 @@ than creating a duplicate.
 
 ## ✉️ Emails
 
-All of these are sent through **Resend**. Without `RESEND_API_KEY` they are
-logged to the server console instead of sent, and nothing else breaks — so the
-shop works before the client has an email provider.
+There are two ways to send, and the app picks whichever is configured (SMTP
+wins if both are). With neither, messages are logged to the server console
+instead of sent and nothing else breaks — so the shop works before the client
+has an email provider.
+
+**Gmail (no domain needed).** Set `SMTP_USER` to the Gmail address and
+`SMTP_PASSWORD` to a Google **App Password** (Google Account → Security →
+2-Step Verification, which must be on → App passwords). Roughly 500 messages a
+day. Google forces the From address to the authenticated mailbox, so mail
+always appears to come from that Gmail account.
+
+**Resend (needs your own domain).** Set `RESEND_API_KEY` and verify the domain
+with them, then `EMAIL_FROM` can be `orders@yourdomain`. Better deliverability;
+a `@gmail.com` sender is not possible this way.
+
+Either way, **Team → Send me a test** in the dashboard proves the setup and
+reports the exact error if it fails.
 
 | Email | When | To |
 |---|---|---|
