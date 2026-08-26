@@ -2,45 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, LogOut, Package, User as UserIcon } from "lucide-react";
 import { useFeedback } from "@/components/ui/Feedback";
+import { useSession } from "@/components/auth/SessionProvider";
 import { cn } from "@/lib/utils";
 
-type SessionUser = { name: string; email: string; role: string } | null;
-
 /**
- * Header account control.
- *
- * The session is fetched client-side on purpose: reading cookies during the
- * server render would make every storefront page dynamic and give up ISR. The
- * cost is a brief moment before the menu knows who you are, which is why the
- * signed-out state is the default rather than a spinner.
+ * Header account control. The session comes from SessionProvider, which fetches
+ * it once for the whole page rather than per component.
  */
 export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
-  const pathname = usePathname();
   const router = useRouter();
   const { toast } = useFeedback();
-  const [user, setUser] = useState<SessionUser>(null);
+  const { user, refresh } = useSession();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-
-  // Re-check on navigation so signing in/out updates the header immediately.
-  useEffect(() => {
-    let active = true;
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (active) setUser(d.user ?? null);
-      })
-      .catch(() => {
-        /* offline or blocked — stay in the signed-out state */
-      });
-    return () => {
-      active = false;
-    };
-  }, [pathname]);
 
   // Close on outside click / Escape.
   useEffect(() => {
@@ -60,7 +38,7 @@ export function AccountMenu({ onNavigate }: { onNavigate?: () => void }) {
   async function signOut() {
     setOpen(false);
     await fetch("/api/auth", { method: "DELETE" }).catch(() => null);
-    setUser(null);
+    await refresh();
     toast.success("Signed out", "See you again soon.");
     router.push("/");
     router.refresh();

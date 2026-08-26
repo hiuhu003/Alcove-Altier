@@ -4,6 +4,8 @@ import { guardAdminApi } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { adjustStock } from "@/lib/orders";
 import { reviewStockFor } from "@/lib/notifications";
+import { sendOrderStatusEmail, sendReviewRequestEmail } from "@/lib/email";
+import { reviewUrlFor } from "@/lib/review-invite";
 
 const patch = z.object({
   status: z.enum(["new", "confirmed", "fulfilled", "cancelled"]).optional(),
@@ -35,6 +37,47 @@ export async function PATCH(
       if (wasCancelled !== isCancelled) {
         const touched = await adjustStock(before.items, isCancelled ? 1 : -1);
         for (const pid of touched) await reviewStockFor(pid);
+      }
+    }
+
+    // Keep the customer informed. Both are best-effort: the status change is
+    // already saved, so a mail problem must not report the update as failed.
+    if (d.status && d.status !== before.status) {
+      try {
+        await sendOrderStatusEmail({
+          ref: order.ref,
+          customerName: order.customerName,
+          email: order.email,
+          status: order.status,
+          total: order.total,
+          deliveryFee: order.deliveryFee,
+          payOnDelivery: order.payOnDelivery,
+        });
+      } catch (err) {
+        console.error("[orders] status email failed:", err);
+      }
+
+      // Once delivered, invite a review - once per order, never on a repeat
+      // save or a status that bounces back and forth.
+      if (order.status === "fulfilled" && !before.reviewEmailAt) {
+        try {
+          const url = reviewUrlFor(order.id);
+          if (url) {
+            await sendReviewRequestEmail({
+              ref: order.ref,
+              customerName: order.customerName,
+              email: order.email,
+              reviewUrl: url,
+              items: before.items.map((i) => ({ name: i.name })),
+            });
+            await prisma.order.update({
+              where: { id: order.id },
+              data: { reviewEmailAt: new Date() },
+            });
+          }
+        } catch (err) {
+          console.error("[orders] review request failed:", err);
+        }
       }
     }
 

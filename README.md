@@ -167,8 +167,11 @@ de-duplicated and clear themselves as soon as the product is restocked.
 
 ## 👤 Customer accounts & order tracking
 
-Shoppers can order as a guest or create an account. One sign-in form serves
-everyone — `/signin` — and the account's **role** decides where it lands:
+**Checkout requires an account.** Every order belongs to someone who can track
+it and be contacted about it — enforced in the API, not just the UI. Shoppers
+who aren't signed in see a prompt (with a WhatsApp escape hatch) rather than the
+form. One sign-in form serves everyone — `/signin` — and the account's **role**
+decides where it lands:
 customers go to `/account`, admins go straight to `/admin`. There is no separate
 admin URL to remember.
 
@@ -180,8 +183,15 @@ admin URL to remember.
 - **`/track`** — guest tracking by order reference **plus** the email it was
   placed with. Both are required: a five-character reference alone would let
   anyone page through other people's orders.
-- Signing in prefills checkout, and orders placed while signed in appear in the
-  account automatically.
+- Signing in prefills checkout, and orders appear in the account automatically.
+- **Baskets belong to the account.** A guest basket carries over on sign-in, and
+  signing out empties it — so on a shared device one person's basket is never
+  handed to the next. (Per-device: a basket doesn't follow you to another
+  browser.)
+- Admins can hand a colleague admin access from **Team** in the dashboard by
+  entering their email and setting a password; the colleague is emailed the
+  details. Someone who already shops here is promoted, not duplicated. You
+  can't demote yourself, and the last admin can't be removed.
 
 Passwords are hashed with **scrypt** from Node's own crypto module (not
 bcrypt/argon2, which are native modules that complicate serverless builds).
@@ -195,6 +205,41 @@ npm run make:admin -- "someone@example.com" "a-strong-password" "Their Name"
 
 Safe to re-run — it promotes an existing account and resets its password rather
 than creating a duplicate.
+
+---
+
+## ✉️ Emails
+
+All of these are sent through **Resend**. Without `RESEND_API_KEY` they are
+logged to the server console instead of sent, and nothing else breaks — so the
+shop works before the client has an email provider.
+
+| Email | When | To |
+|---|---|---|
+| Order confirmation | an order is placed | customer |
+| New order alert | an order is placed | the shop (`ORDER_NOTIFY_EMAIL`) |
+| Status update | the admin moves an order along | customer |
+| How did we do? | an order is marked **fulfilled** | customer |
+| Admin invitation | someone is given admin access | the new admin |
+
+The status email shows the same three-step tracker the customer sees on the
+site. The review invitation is only ever sent once per order.
+
+---
+
+## ⭐ Reviews
+
+After delivery the customer gets a "how did we do?" email linking to a star
+form — one card per piece in the order, each submitted on its own.
+
+The link carries a signed token tied to the order id: people read email on a
+phone that isn't logged in, and a login wall kills the response rate, so the
+token is what proves they received the invitation. A review can only be left
+for a product that was actually in that order, and re-opening the link edits
+the existing review rather than adding another.
+
+Reviews appear under the product with the average rating, and feed the
+`rating` / `reviews` columns that the shop and the Product structured data read.
 
 ---
 

@@ -614,23 +614,32 @@ function Toggle({
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={checked}
       onClick={() => onChange(!checked)}
       className="flex items-center gap-2 text-sm"
     >
+      {/*
+        The knob is a flex child rather than an absolutely positioned one: with
+        `absolute` and no `left`, its resting place came from the static
+        position and drifted outside the track, sliding over the label. As a
+        centred flex child the only thing that moves it is the transform, so the
+        travel is exactly track - knob - padding.
+      */}
       <span
         className={cn(
-          "relative h-6 w-11 rounded-full transition-colors",
+          "inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
           checked ? "bg-pink-strong" : "bg-charcoal/20"
         )}
       >
         <span
           className={cn(
-            "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform",
-            checked ? "translate-x-5" : "translate-x-0.5"
+            "h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200",
+            checked ? "translate-x-5" : "translate-x-0"
           )}
         />
       </span>
-      {label}
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }

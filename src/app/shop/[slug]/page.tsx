@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ProductDetail } from "@/components/shop/ProductDetail";
 import { ProductCard } from "@/components/shop/ProductCard";
 import { getProduct, getRelated } from "@/lib/products";
+import { getProductReviews } from "@/lib/reviews";
+import { ReviewList } from "@/components/reviews/ReviewList";
 import { SITE } from "@/lib/site";
 import {
   absoluteUrl,
@@ -63,7 +65,10 @@ export default async function ProductPage({
   const product = await getProduct(slug);
   if (!product) notFound();
 
-  const related = await getRelated(product);
+  const [related, reviews] = await Promise.all([
+    getRelated(product),
+    getProductReviews(product.id),
+  ]);
 
   const crumbs = breadcrumbJsonLd([
     { name: "Home", path: "/" },
@@ -82,6 +87,8 @@ export default async function ProductPage({
         dangerouslySetInnerHTML={{ __html: jsonLdScript(crumbs) }}
       />
       <ProductDetail product={product} />
+
+      <ReviewList reviews={reviews} rating={product.rating} />
 
       {related.length > 0 && (
         <section className="container-x pb-24">

@@ -8,7 +8,14 @@ import { CartDrawer } from "@/components/cart/CartDrawer";
 import { StoreChrome } from "@/components/layout/StoreChrome";
 import { Analytics } from "@/components/Analytics";
 import { FeedbackProvider } from "@/components/ui/Feedback";
-import { baseMetadata, jsonLdScript, localBusinessJsonLd, webSiteJsonLd } from "@/lib/seo";
+import { SessionProvider } from "@/components/auth/SessionProvider";
+import { CartOwner } from "@/components/cart/CartOwner";
+import {
+  baseMetadata,
+  jsonLdScript,
+  localBusinessJsonLd,
+  webSiteJsonLd,
+} from "@/lib/seo";
 
 const serif = Cormorant_Garamond({
   variable: "--font-cormorant",
@@ -38,22 +45,27 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLdScript(localBusinessJsonLd()) }}
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript(localBusinessJsonLd()),
+          }}
         />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLdScript(webSiteJsonLd()) }}
         />
-        <FeedbackProvider>
-        <StoreChrome
-          header={<Header />}
-          footer={<Footer />}
-          float={<WhatsAppFloat />}
-          drawer={<CartDrawer />}
-        >
-          {children}
-        </StoreChrome>
-        </FeedbackProvider>
+        <SessionProvider>
+          <FeedbackProvider>
+            <CartOwner />
+            <StoreChrome
+              header={<Header />}
+              footer={<Footer />}
+              float={<WhatsAppFloat />}
+              drawer={<CartDrawer />}
+            >
+              {children}
+            </StoreChrome>
+          </FeedbackProvider>
+        </SessionProvider>
         <Analytics />
       </body>
     </html>

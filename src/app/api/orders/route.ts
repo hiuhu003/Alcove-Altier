@@ -27,7 +27,19 @@ export async function POST(req: Request) {
     // The account comes from the session cookie, never from the request body -
     // a client must not be able to file an order under someone else's account.
     const user = await getCurrentUser();
-    const order = await createOrder(body, user?.id);
+    // Enforced here, not just in the UI: checkout requires an account, so every
+    // order belongs to someone who can track it and be contacted about it.
+    if (!user) {
+      return NextResponse.json(
+        {
+          ok: false,
+          needsAuth: true,
+          error: "Please sign in to place your order.",
+        },
+        { status: 401 }
+      );
+    }
+    const order = await createOrder(body, user.id);
     return NextResponse.json({ ok: true, ref: order.ref, id: order.id });
   } catch (err) {
     // A rule the customer can act on (wrong delivery zone, etc.) is surfaced

@@ -19,6 +19,7 @@ import {
   type DeliveryZoneKey,
 } from "@/lib/delivery";
 import { cn, formatKES } from "@/lib/utils";
+import { useSession } from "@/components/auth/SessionProvider";
 
 type Method = "whatsapp" | "mpesa" | "cod";
 
@@ -35,6 +36,7 @@ const methods: { key: Method; label: string; hint: string; nairobiOnly?: boolean
 
 export function CheckoutClient() {
   const router = useRouter();
+  const { user, loading: sessionLoading } = useSession();
   const { items, clear } = useCart();
   const total = cartTotal(items);
   const hasBespoke = useMemo(() => items.some((i) => i.bespoke), [items]);
@@ -51,36 +53,23 @@ export function CheckoutClient() {
     notes: "",
   });
   const [mpesaCode, setMpesaCode] = useState("");
-  const [signedIn, setSignedIn] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryable, setRetryable] = useState(false);
 
   const zone = getZone(zoneKey);
 
-  // Prefill from the signed-in account so returning customers don't retype
-  // their details. Anything already typed is left alone.
+  // Details come from the account, so returning customers don't retype them.
   useEffect(() => {
-    let active = true;
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!active || !d.user) return;
-        setSignedIn(true);
-        setForm((f) => ({
-          ...f,
-          customerName: f.customerName || d.user.name || "",
-          email: f.email || d.user.email || "",
-          phone: f.phone || d.user.phone || "",
-        }));
-      })
-      .catch(() => {
-        /* guest checkout - nothing to prefill */
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (!user) return;
+    setForm((f) => ({
+      ...f,
+      customerName: f.customerName || user.name || "",
+      email: f.email || user.email || "",
+      phone: f.phone || user.phone || "",
+    }));
+  }, [user]);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -193,6 +182,51 @@ export function CheckoutClient() {
     }
   }
 
+  if (sessionLoading) {
+    return (
+      <div className="container-x grid min-h-[60vh] place-items-center pt-[var(--header-h)]">
+        <Loader2 className="h-6 w-6 animate-spin text-graphite" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="container-x grid min-h-[60vh] place-items-center pt-[calc(var(--header-h)+2rem)] text-center">
+        <div className="max-w-md">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-blush/50">
+            <ShieldCheck className="h-6 w-6 text-pink-strong" />
+          </div>
+          <h1 className="mt-6 font-serif text-4xl">Sign in to check out</h1>
+          <p className="mt-3 leading-relaxed text-graphite">
+            Your basket is saved. Signing in lets us confirm your delivery details
+            and gives you a page to follow the order from confirmation to your door.
+          </p>
+          <div className="mt-7 flex flex-wrap justify-center gap-3">
+            <ButtonLink href="/signin?next=/checkout" variant="primary" size="lg">
+              Sign in
+            </ButtonLink>
+            <ButtonLink href="/signup?next=/checkout" variant="outline" size="lg">
+              Create an account
+            </ButtonLink>
+          </div>
+          <p className="mt-6 text-sm text-graphite">
+            Prefer not to?{" "}
+            <a
+              href={cartEnquiry(items, total, "(new order)")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-pink-strong underline underline-offset-4"
+            >
+              Send your basket on WhatsApp
+            </a>{" "}
+            and we&apos;ll take it from there.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="container-x grid min-h-[60vh] place-items-center pt-[var(--header-h)] text-center">
@@ -214,20 +248,6 @@ export function CheckoutClient() {
       <div className="grid gap-12 lg:grid-cols-[1.3fr_1fr]">
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-10">
-          {!signedIn && (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-charcoal/10 bg-white/50 px-5 py-4">
-              <p className="text-sm text-graphite">
-                Have an account? Sign in to fill this in automatically.
-              </p>
-              <Link
-                href="/signin?next=/checkout"
-                className="text-sm font-medium text-pink-strong underline underline-offset-4"
-              >
-                Sign in
-              </Link>
-            </div>
-          )}
-
           <section>
             <h2 className="mb-5 font-serif text-2xl">Your details</h2>
             <div className="grid gap-4 sm:grid-cols-2">

@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  ExternalLink,
-  Tags,
-  BarChart3,
-} from "lucide-react";
+import { BarChart3, ExternalLink, LayoutDashboard, Package, ShoppingCart, Tags, Users } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { LogoutButton } from "./LogoutButton";
 import { NotificationBell } from "./NotificationBell";
@@ -16,6 +9,7 @@ const nav = [
   { href: "/admin/products", label: "Products", icon: Package, key: "products" },
   { href: "/admin/categories", label: "Categories", icon: Tags, key: "categories" },
   { href: "/admin/orders", label: "Orders", icon: ShoppingCart, key: "orders" },
+  { href: "/admin/users", label: "Team", icon: Users, key: "users" },
   { href: "/admin/reports", label: "Reports", icon: BarChart3, key: "reports" },
 ];
 

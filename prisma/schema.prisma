@@ -44,6 +44,7 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   orderItems OrderItem[]
+  productReviews Review[]
 
   @@index([published, createdAt])
   @@index([category])
@@ -74,6 +75,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   orders Order[]
+  reviews Review[]
 
   @@index([role])
 }
@@ -106,6 +108,8 @@ model Order {
   deliveryArea  String? // estate / town the customer typed
   deliveryFee   Int      @default(0) // 0 = not quoted yet; set by admin
   payOnDelivery Boolean  @default(false)
+  // When the "how did we do?" email went out, so it is only ever sent once.
+  reviewEmailAt DateTime?
 
   items OrderItem[]
 
@@ -119,6 +123,28 @@ model Order {
 /// Admin alerts — new orders, payments received, stock running out.
 /// `dedupeKey` keeps repeated conditions (e.g. "Mirror X is out of stock")
 /// from stacking up: it is unique, so re-raising is a no-op until cleared.
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // The order this review came from. Reviews are invited by email after
+  // delivery, so this is what proves the reviewer actually bought the piece.
+  orderId    String?
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  authorName String
+  rating     Int // 1-5 stars
+  title      String   @default("")
+  body       String   @default("")
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  // One review per product per order - the invite link can be opened twice.
+  @@unique([orderId, productId])
+  @@index([productId, published, createdAt])
+}
+
 model Notification {
   id        String   @id @default(cuid())
   type      String // order.new | order.paid | stock.out | stock.low
