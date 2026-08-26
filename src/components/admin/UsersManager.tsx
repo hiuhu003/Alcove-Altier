@@ -31,14 +31,25 @@ export function UsersManager() {
   const [inviting, setInviting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; detail: string } | null>(null);
+  const [diagnostics, setDiagnostics] = useState<{
+    hint: string;
+    present: Record<string, boolean>;
+  } | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/users");
-      const data = await res.json();
+      const [usersRes, mailRes] = await Promise.all([
+        fetch("/api/admin/users"),
+        fetch("/api/admin/email-test"),
+      ]);
+      const data = await usersRes.json();
       setPeople(data.users ?? []);
       setEmailConfigured(data.emailConfigured ?? true);
+
+      // Which settings this server can actually see - names only, no values.
+      const mail = await mailRes.json().catch(() => null);
+      if (mail?.ok) setDiagnostics({ hint: mail.hint, present: mail.present });
     } finally {
       setLoading(false);
     }
@@ -67,6 +78,7 @@ export function UsersManager() {
       const res = await fetch("/api/admin/email-test", { method: "POST" });
       const data = await res.json();
       setTestResult({ ok: Boolean(data.ok), detail: data.detail ?? data.error ?? "" });
+      if (data.present) setDiagnostics({ hint: data.hint ?? "", present: data.present });
       if (data.ok) {
         toast.success("Test email sent", `Check ${data.to}`);
         setEmailConfigured(true);
@@ -126,6 +138,25 @@ export function UsersManager() {
                 ? "Order confirmations, delivery updates, review invitations and admin invitations are sent automatically."
                 : "Messages are being logged instead of sent. New admins are still created — you'll just need to pass their details on yourself."}
             </p>
+            {diagnostics && !emailConfigured && (
+              <>
+                <p className="mt-2 text-sm text-charcoal">{diagnostics.hint}</p>
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  {Object.entries(diagnostics.present).map(([name, set]) => (
+                    <li
+                      key={name}
+                      className={cn(
+                        "flex items-center gap-1.5 font-mono text-xs",
+                        set ? "text-emerald-700" : "text-graphite"
+                      )}
+                    >
+                      {set ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      {name}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
           <button
             onClick={sendTest}

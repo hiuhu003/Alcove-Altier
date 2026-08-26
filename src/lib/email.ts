@@ -72,6 +72,49 @@ export function isEmailConfigured(): boolean {
 }
 
 /**
+ * Which mail settings the running server can actually see.
+ *
+ * Names and presence only - never values. "Not configured" is almost always a
+ * variable that was added but not deployed, added to the wrong environment, or
+ * misspelled, and none of those are distinguishable from "nothing set" without
+ * this.
+ */
+export function emailDiagnostics(): {
+  transport: EmailTransport;
+  present: Record<string, boolean>;
+  hint: string;
+} {
+  const present = {
+    SMTP_USER: Boolean(process.env.SMTP_USER),
+    SMTP_PASSWORD: Boolean(process.env.SMTP_PASSWORD),
+    SMTP_HOST: Boolean(process.env.SMTP_HOST),
+    SMTP_PORT: Boolean(process.env.SMTP_PORT),
+    RESEND_API_KEY: Boolean(process.env.RESEND_API_KEY),
+    ORDER_NOTIFY_EMAIL: Boolean(process.env.ORDER_NOTIFY_EMAIL),
+  };
+
+  const transport = emailTransport();
+  let hint = "";
+
+  if (transport === "smtp") {
+    hint = `Sending over SMTP as ${process.env.SMTP_USER}.`;
+  } else if (transport === "resend") {
+    hint = "Sending through Resend.";
+  } else if (present.SMTP_USER && !present.SMTP_PASSWORD) {
+    hint =
+      "SMTP_USER is set but SMTP_PASSWORD is missing. Add the 16-character Google App Password and redeploy.";
+  } else if (present.SMTP_PASSWORD && !present.SMTP_USER) {
+    hint =
+      "SMTP_PASSWORD is set but SMTP_USER is missing. Add the Gmail address and redeploy.";
+  } else {
+    hint =
+      "This server sees none of the mail settings. If you have already added them in Vercel, they only take effect on a NEW deployment - redeploy with the build cache turned off, and check they are enabled for Production.";
+  }
+
+  return { transport, present, hint };
+}
+
+/**
  * The From address.
  *
  * Gmail rewrites this header to the authenticated mailbox regardless of what we

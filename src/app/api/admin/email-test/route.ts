@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardAdminApi } from "@/lib/http";
 import { getCurrentUser } from "@/lib/users";
-import { emailTransport, sendTestEmail } from "@/lib/email";
+import { emailDiagnostics, emailTransport, sendTestEmail } from "@/lib/email";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const denied = await guardAdminApi();
   if (denied) return denied;
-  return NextResponse.json({ ok: true, transport: emailTransport() });
+  return NextResponse.json({ ok: true, ...emailDiagnostics() });
 }
 
 /**
@@ -31,8 +31,17 @@ export async function POST(req: Request) {
   }
 
   const result = await sendTestEmail(admin.email);
+  const diagnostics = emailDiagnostics();
   return NextResponse.json(
-    { ok: result.ok, detail: result.detail, to: admin.email, transport: emailTransport() },
+    {
+      ok: result.ok,
+      detail: result.detail,
+      to: admin.email,
+      transport: emailTransport(),
+      // Names and presence only, so a failure says which setting is missing.
+      present: diagnostics.present,
+      hint: diagnostics.hint,
+    },
     { status: result.ok ? 200 : 400 }
   );
 }
