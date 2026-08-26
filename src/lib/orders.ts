@@ -2,9 +2,14 @@ import "server-only";
 import { z } from "zod";
 import { prisma } from "./prisma";
 import { sendOrderEmails } from "./email";
-import { notifyNewOrder, notifyOrderPaid, reviewStockFor } from "./notifications";
+import {
+  notifyNewOrder,
+  notifyOrderPaid,
+  reviewStockFor,
+} from "./notifications";
 import { getZone } from "./delivery";
 import { PublicError } from "./errors";
+import { withDbRetry } from "./db-retry";
 
 export const orderItemSchema = z.object({
   productId: z.string().optional(),
@@ -34,7 +39,8 @@ function makeRef(): string {
   // Short, human-friendly, time-based ref e.g. AA-8F3K2
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
-  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 5; i++)
+    s += chars[Math.floor(Math.random() * chars.length)];
   return `AA-${s}`;
 }
 
@@ -46,7 +52,7 @@ function makeRef(): string {
  */
 export async function adjustStock(
   items: { productId?: string | null; qty: number }[],
-  sign: -1 | 1
+  sign: -1 | 1,
 ): Promise<string[]> {
   const wanted = new Map<string, number>();
   for (const i of items) {
@@ -64,13 +70,19 @@ export async function adjustStock(
   for (const p of products) {
     const next = Math.max(0, p.inStock + sign * (wanted.get(p.id) ?? 0));
     if (next === p.inStock) continue;
-    await prisma.product.update({ where: { id: p.id }, data: { inStock: next } });
+    await prisma.product.update({
+      where: { id: p.id },
+      data: { inStock: next },
+    });
     touched.push(p.id);
   }
   return touched;
 }
 
-export async function createOrder(input: CreateOrderInput, userId?: string | null) {
+export async function createOrder(
+  input: CreateOrderInput,
+  userId?: string | null,
+) {
   const data = createOrderSchema.parse(input);
   const zone = getZone(data.deliveryZone);
 
@@ -79,45 +91,49 @@ export async function createOrder(input: CreateOrderInput, userId?: string | nul
     // PublicError, not Error: this is a rule the customer can act on, so the
     // API passes the message straight through instead of masking it as a fault.
     throw new PublicError(
-      "Pay on delivery is only available in Nairobi & environs. For deliveries outside Nairobi, please order on WhatsApp or pay via M-Pesa."
+      "Pay on delivery is only available in Nairobi & environs. For deliveries outside Nairobi, please order on WhatsApp or pay via M-Pesa.",
     );
   }
 
   const total = data.items.reduce((sum, i) => sum + i.price * i.qty, 0);
   const ref = makeRef();
 
-  const order = await prisma.order.create({
-    data: {
-      ref,
-      // Ties the order to an account when one is signed in, so it shows up in
-      // their history. Guest orders leave this null and are found by ref+email.
-      userId: userId ?? null,
-      customerName: data.customerName,
-      email: data.email,
-      phone: data.phone,
-      address: data.address ?? null,
-      city: data.city ?? null,
-      notes: data.notes ?? null,
-      channel: data.channel,
-      total,
-      paymentStatus: "pending",
-      deliveryZone: zone.key,
-      deliveryArea: data.deliveryArea || data.city || null,
-      deliveryFee: 0, // quoted by the shop once the location is known
-      payOnDelivery: data.channel === "cod",
-      items: {
-        create: data.items.map((i) => ({
-          productId: i.productId,
-          name: i.name,
-          color: i.color ?? null,
-          size: i.size ?? null,
-          price: i.price,
-          qty: i.qty,
-        })),
-      },
-    },
-    include: { items: true },
-  });
+  const order = await withDbRetry(
+    () =>
+      prisma.order.create({
+        data: {
+          ref,
+          // Ties the order to an account when one is signed in, so it shows up in
+          // their history. Guest orders leave this null and are found by ref+email.
+          userId: userId ?? null,
+          customerName: data.customerName,
+          email: data.email,
+          phone: data.phone,
+          address: data.address ?? null,
+          city: data.city ?? null,
+          notes: data.notes ?? null,
+          channel: data.channel,
+          total,
+          paymentStatus: "pending",
+          deliveryZone: zone.key,
+          deliveryArea: data.deliveryArea || data.city || null,
+          deliveryFee: 0, // quoted by the shop once the location is known
+          payOnDelivery: data.channel === "cod",
+          items: {
+            create: data.items.map((i) => ({
+              productId: i.productId,
+              name: i.name,
+              color: i.color ?? null,
+              size: i.size ?? null,
+              price: i.price,
+              qty: i.qty,
+            })),
+          },
+        },
+        include: { items: true },
+      }),
+    "create order",
+  );
 
   // Take the pieces out of stock, then raise alerts for anything now low/out.
   try {
@@ -128,33 +144,42 @@ export async function createOrder(input: CreateOrderInput, userId?: string | nul
   }
 
   // Admin alert — shows in the bell in /admin straight away.
-  await notifyNewOrder({
-    id: order.id,
-    ref: order.ref,
-    customerName: order.customerName,
-    channel: order.channel,
-    total: order.total,
-    deliveryZone: order.deliveryZone,
-    payOnDelivery: order.payOnDelivery,
-    items: order.items,
-  });
+  try {
+    await notifyNewOrder({
+      id: order.id,
+      ref: order.ref,
+      customerName: order.customerName,
+      channel: order.channel,
+      total: order.total,
+      deliveryZone: order.deliveryZone,
+      payOnDelivery: order.payOnDelivery,
+      items: order.items,
+    });
+  } catch (err) {
+    console.error("[orders] new-order alert failed:", err);
+  }
 
-  // Fire-and-forget notification (won't block/fail the order).
-  await sendOrderEmails({
-    ref: order.ref,
-    customerName: order.customerName,
-    email: order.email,
-    phone: order.phone,
-    address: order.address,
-    city: order.city,
-    notes: order.notes,
-    channel: order.channel,
-    total: order.total,
-    deliveryZone: order.deliveryZone,
-    deliveryArea: order.deliveryArea,
-    payOnDelivery: order.payOnDelivery,
-    items: order.items,
-  });
+  // The order is saved by now, so a failing email must not fail the request -
+  // otherwise the customer sees an error, retries, and orders twice.
+  try {
+    await sendOrderEmails({
+      ref: order.ref,
+      customerName: order.customerName,
+      email: order.email,
+      phone: order.phone,
+      address: order.address,
+      city: order.city,
+      notes: order.notes,
+      channel: order.channel,
+      total: order.total,
+      deliveryZone: order.deliveryZone,
+      deliveryArea: order.deliveryArea,
+      payOnDelivery: order.payOnDelivery,
+      items: order.items,
+    });
+  } catch (err) {
+    console.error("[orders] confirmation email failed:", err);
+  }
 
   return order;
 }
@@ -164,6 +189,10 @@ export async function markOrderPaid(ref: string, paymentRef: string) {
     where: { ref },
     data: { paymentStatus: "paid", status: "confirmed", paymentRef },
   });
-  await notifyOrderPaid({ ref: order.ref, total: order.total + order.deliveryFee, paymentRef });
+  await notifyOrderPaid({
+    ref: order.ref,
+    total: order.total + order.deliveryFee,
+    paymentRef,
+  });
   return order;
 }

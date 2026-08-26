@@ -54,6 +54,7 @@ export function CheckoutClient() {
   const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryable, setRetryable] = useState(false);
 
   const zone = getZone(zoneKey);
 
@@ -129,13 +130,17 @@ export function CheckoutClient() {
       }),
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "Could not create order");
+    if (!data.ok) {
+      setRetryable(Boolean(data.retryable));
+      throw new Error(data.error || "Could not create order");
+    }
     return data.ref as string;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setRetryable(false);
     if (!form.customerName || !form.email || !form.phone) {
       setError("Please fill in your name, email and phone.");
       return;
@@ -177,7 +182,13 @@ export function CheckoutClient() {
       clear();
       router.push(`/checkout/success?ref=${ref}&method=mpesa&pending=1`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      // A network failure never reaches the API, so it is always worth retrying.
+      if (err instanceof TypeError) setRetryable(true);
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "We couldn't reach the server. Check your connection and try again."
+      );
       setLoading(false);
     }
   }
@@ -340,13 +351,24 @@ export function CheckoutClient() {
           </section>
 
           {error && (
-            <motion.p
+            <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
+              role="alert"
               className="rounded-xl bg-coral/10 px-4 py-3 text-sm text-charcoal"
             >
-              {error}
-            </motion.p>
+              <p>{error}</p>
+              {retryable && (
+                <a
+                  href={cartEnquiry(items, total, "(new order)")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-2 font-medium text-charcoal underline underline-offset-4"
+                >
+                  Send this order on WhatsApp instead
+                </a>
+              )}
+            </motion.div>
           )}
 
           <Button type="submit" size="lg" className="w-full" disabled={loading}>

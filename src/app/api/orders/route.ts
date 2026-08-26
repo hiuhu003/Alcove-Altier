@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createOrder } from "@/lib/orders";
 import { isPublicError } from "@/lib/errors";
+import { isTransientDbError } from "@/lib/db-retry";
 import { getCurrentUser } from "@/lib/users";
 import { isSameOrigin, forbidden } from "@/lib/http";
 import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -38,9 +39,29 @@ export async function POST(req: Request) {
       const message = err.issues[0]?.message ?? "Please check your details.";
       return NextResponse.json({ ok: false, error: message }, { status: 400 });
     }
+    // A connection blip that survived the retries is worth saying out loud:
+    // "try again" is genuinely the right advice, and the customer should know
+    // nothing is wrong with their details.
+    if (isTransientDbError(err)) {
+      console.error("[orders] database unreachable after retries:", err);
+      return NextResponse.json(
+        {
+          ok: false,
+          retryable: true,
+          error:
+            "We're having a brief connection problem on our side - your details are fine. Please press the button again, or send the order on WhatsApp and we'll take it from there.",
+        },
+        { status: 503 }
+      );
+    }
+
     console.error("[orders] create failed:", err);
     return NextResponse.json(
-      { ok: false, error: "We couldn't place that order. Please try again or message us on WhatsApp." },
+      {
+        ok: false,
+        retryable: true,
+        error: "We couldn't place that order. Please try again, or send it to us on WhatsApp.",
+      },
       { status: 500 }
     );
   }
