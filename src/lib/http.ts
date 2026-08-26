@@ -44,6 +44,19 @@ export function forbidden(message = "Forbidden"): Response {
 export async function guardAdminApi(): Promise<Response | null> {
   const { isAdminApi } = await import("./auth");
   if (!(await isAdminApi())) {
+    const { getCurrentUser } = await import("./users");
+    const user = await getCurrentUser();
+
+    // Signed in but not an admin: 404, matching the pages. A 403 would confirm
+    // the endpoint exists; a 401 would invite them to sign in again, which
+    // they have already done.
+    if (user) {
+      return new Response(JSON.stringify({ ok: false, error: "Not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+
     return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },

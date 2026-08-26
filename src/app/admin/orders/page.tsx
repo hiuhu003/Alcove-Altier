@@ -6,7 +6,7 @@ import { OrdersManager } from "@/components/admin/OrdersManager";
 export const dynamic = "force-dynamic";
 
 export default async function AdminOrdersPage() {
-  await requireAdmin();
+  await requireAdmin("/admin/orders");
   const rows = await prisma.order.findMany({
     orderBy: { createdAt: "desc" },
     include: { items: true },

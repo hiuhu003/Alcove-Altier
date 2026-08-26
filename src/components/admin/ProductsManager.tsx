@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ImagePlus, Loader2, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
+import {
+  ImagePlus,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import { cn, formatKES, slugify } from "@/lib/utils";
 import { matchesStockFilter, stockState, type StockFilter } from "@/lib/stock";
@@ -102,7 +111,7 @@ export function ProductsManager({
       (cData.categories ?? []).map((c: { slug: string; name: string }) => ({
         slug: c.slug,
         name: c.name,
-      }))
+      })),
     );
     setLoading(false);
   }
@@ -118,9 +127,9 @@ export function ProductsManager({
       products.filter(
         (p) =>
           p.name.toLowerCase().includes(query.toLowerCase()) &&
-          matchesStockFilter(p, stockFilter)
+          matchesStockFilter(p, stockFilter),
       ),
-    [products, query, stockFilter]
+    [products, query, stockFilter],
   );
 
   // Counts for the stock chips — always over the whole catalogue, so the
@@ -131,7 +140,7 @@ export function ProductsManager({
       low: products.filter((p) => matchesStockFilter(p, "low")).length,
       out: products.filter((p) => matchesStockFilter(p, "out")).length,
     }),
-    [products]
+    [products],
   );
 
   function startEdit(p: AdminProduct) {
@@ -211,14 +220,16 @@ export function ProductsManager({
               "flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm transition-colors",
               stockFilter === f.key
                 ? "border-charcoal bg-charcoal text-cream"
-                : "border-charcoal/15 text-graphite hover:border-charcoal"
+                : "border-charcoal/15 text-graphite hover:border-charcoal",
             )}
           >
             {f.label}
             <span
               className={cn(
                 "grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px]",
-                stockFilter === f.key ? "bg-cream/20 text-cream" : "bg-charcoal/8 text-graphite"
+                stockFilter === f.key
+                  ? "bg-cream/20 text-cream"
+                  : "bg-charcoal/8 text-graphite",
               )}
             >
               {stockCounts[f.key]}
@@ -244,65 +255,86 @@ export function ProductsManager({
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-charcoal/10 bg-cream">
-          <table className="w-full text-sm">
-            <thead className="bg-sand/60 text-left text-xs uppercase tracking-wider text-graphite">
-              <tr>
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Price</th>
-                <th className="px-4 py-3">Stock</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p) => {
-                const imgs = parse(p.images);
-                return (
-                  <tr key={p.id} className="border-t border-charcoal/5">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-md bg-sand">
-                          {imgs[0] && (
-                            <SafeImage src={imgs[0]} alt="" fill sizes="40px" fallbackSeed={p.slug} className="object-cover" />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead className="bg-sand/60 text-left text-xs uppercase tracking-wider text-graphite">
+                <tr>
+                  <th className="px-4 py-3">Product</th>
+                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Price</th>
+                  <th className="px-4 py-3">Stock</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p) => {
+                  const imgs = parse(p.images);
+                  return (
+                    <tr key={p.id} className="border-t border-charcoal/5">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative h-12 w-10 shrink-0 overflow-hidden rounded-md bg-sand">
+                            {imgs[0] && (
+                              <SafeImage
+                                src={imgs[0]}
+                                alt=""
+                                fill
+                                sizes="40px"
+                                fallbackSeed={p.slug}
+                                className="object-cover"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-medium">{p.name}</p>
+                            <p className="text-xs text-graphite">{p.slug}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 capitalize text-graphite">
+                        {catName(p.category)}
+                      </td>
+                      <td className="px-4 py-3">{formatKES(p.price)}</td>
+                      <td className="px-4 py-3">
+                        <StockCell product={p} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-xs",
+                            p.published
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-charcoal/10 text-graphite",
                           )}
+                        >
+                          {p.published ? "Live" : "Draft"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() => startEdit(p)}
+                            aria-label="Edit"
+                            className="rounded-lg p-2 hover:bg-charcoal/5"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => remove(p.id)}
+                            aria-label="Delete"
+                            className="rounded-lg p-2 text-coral hover:bg-coral/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
-                        <div>
-                          <p className="font-medium">{p.name}</p>
-                          <p className="text-xs text-graphite">{p.slug}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 capitalize text-graphite">{catName(p.category)}</td>
-                    <td className="px-4 py-3">{formatKES(p.price)}</td>
-                    <td className="px-4 py-3">
-                      <StockCell product={p} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs",
-                          p.published ? "bg-emerald-100 text-emerald-700" : "bg-charcoal/10 text-graphite"
-                        )}
-                      >
-                        {p.published ? "Live" : "Draft"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => startEdit(p)} aria-label="Edit" className="rounded-lg p-2 hover:bg-charcoal/5">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => remove(p.id)} aria-label="Delete" className="rounded-lg p-2 text-coral hover:bg-coral/10">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           {filtered.length === 0 && (
             <p className="py-12 text-center text-sm text-graphite">
               {stockFilter === "out"
@@ -335,7 +367,8 @@ export function ProductsManager({
 /** Stock at a glance — what the dashboard alerts are pointing at. */
 function StockCell({ product }: { product: AdminProduct }) {
   const state = stockState(product);
-  if (state === "bespoke") return <span className="text-graphite">Made to order</span>;
+  if (state === "bespoke")
+    return <span className="text-graphite">Made to order</span>;
   if (state === "out")
     return (
       <span className="rounded-full bg-coral/15 px-2 py-0.5 text-xs font-medium text-coral">
@@ -366,7 +399,8 @@ function ProductEditor({
   // The category field is edited by display name (so a new one can be typed);
   // it's resolved back to a slug on save.
   const [categoryName, setCategoryName] = useState<string>(
-    categories.find((c) => c.slug === initial.category)?.name ?? initial.category
+    categories.find((c) => c.slug === initial.category)?.name ??
+      initial.category,
   );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -381,7 +415,7 @@ function ProductEditor({
     const trimmed = categoryName.trim();
     if (!trimmed) return "";
     const existing = categories.find(
-      (c) => c.name.toLowerCase() === trimmed.toLowerCase()
+      (c) => c.name.toLowerCase() === trimmed.toLowerCase(),
     );
     if (existing) return existing.slug;
     // New category — create it on the fly.
@@ -421,9 +455,18 @@ function ProductEditor({
       shortDesc: form.shortDesc,
       description: form.description,
       images: form.images,
-      colors: form.colors.split(",").map((s) => s.trim()).filter(Boolean),
-      sizes: form.sizes.split(",").map((s) => s.trim()).filter(Boolean),
-      materials: form.materials.split(",").map((s) => s.trim()).filter(Boolean),
+      colors: form.colors
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      sizes: form.sizes
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      materials: form.materials
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       featured: form.featured,
       bespoke: form.bespoke,
       inStock: Number(form.inStock || 0),
@@ -435,7 +478,7 @@ function ProductEditor({
         method: form.id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      }
+      },
     );
     const data = await res.json();
     setSaving(false);
@@ -460,8 +503,13 @@ function ProductEditor({
         className="fixed right-0 top-0 z-[80] flex h-full w-full max-w-xl flex-col bg-cream shadow-2xl"
       >
         <div className="flex items-center justify-between border-b border-charcoal/10 px-6 py-4">
-          <h2 className="font-serif text-2xl">{form.id ? "Edit product" : "New product"}</h2>
-          <button onClick={onClose} className="rounded-full p-2 hover:bg-charcoal/5">
+          <h2 className="font-serif text-2xl">
+            {form.id ? "Edit product" : "New product"}
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 hover:bg-charcoal/5"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -472,10 +520,24 @@ function ProductEditor({
             <label className="mb-2 block text-sm font-medium">Images</label>
             <div className="flex flex-wrap gap-3">
               {form.images.map((src, i) => (
-                <div key={i} className="relative h-24 w-20 overflow-hidden rounded-lg bg-sand">
-                  <SafeImage src={src} alt="" fill sizes="80px" className="object-cover" />
+                <div
+                  key={i}
+                  className="relative h-24 w-20 overflow-hidden rounded-lg bg-sand"
+                >
+                  <SafeImage
+                    src={src}
+                    alt=""
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
                   <button
-                    onClick={() => set("images", form.images.filter((_, idx) => idx !== i))}
+                    onClick={() =>
+                      set(
+                        "images",
+                        form.images.filter((_, idx) => idx !== i),
+                      )
+                    }
                     className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-charcoal/70 text-white"
                     aria-label="Remove image"
                   >
@@ -484,12 +546,18 @@ function ProductEditor({
                 </div>
               ))}
               <label className="grid h-24 w-20 cursor-pointer place-items-center rounded-lg border-2 border-dashed border-charcoal/20 text-graphite hover:border-coral hover:text-coral">
-                {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
+                {uploading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Upload className="h-5 w-5" />
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
+                  onChange={(e) =>
+                    e.target.files?.[0] && upload(e.target.files[0])
+                  }
                 />
               </label>
             </div>
@@ -515,10 +583,16 @@ function ProductEditor({
             </div>
           </div>
 
-          <TextField label="Name" value={form.name} onChange={(v) => set("name", v)} />
+          <TextField
+            label="Name"
+            value={form.name}
+            onChange={(v) => set("name", v)}
+          />
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium">Category</label>
+              <label className="mb-1.5 block text-sm font-medium">
+                Category
+              </label>
               <input
                 list="product-categories"
                 value={categoryName}
@@ -535,15 +609,36 @@ function ProductEditor({
                 Type a new name to create a category on the fly.
               </p>
             </div>
-            <TextField label="Stock (0 = made to order)" type="number" value={form.inStock} onChange={(v) => set("inStock", v)} />
+            <TextField
+              label="Stock (0 = made to order)"
+              type="number"
+              value={form.inStock}
+              onChange={(v) => set("inStock", v)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <TextField label="Price (KES)" type="number" value={form.price} onChange={(v) => set("price", v)} />
-            <TextField label="Compare-at (optional)" type="number" value={form.compareAt} onChange={(v) => set("compareAt", v)} />
+            <TextField
+              label="Price (KES)"
+              type="number"
+              value={form.price}
+              onChange={(v) => set("price", v)}
+            />
+            <TextField
+              label="Compare-at (optional)"
+              type="number"
+              value={form.compareAt}
+              onChange={(v) => set("compareAt", v)}
+            />
           </div>
-          <TextField label="Short description" value={form.shortDesc} onChange={(v) => set("shortDesc", v)} />
+          <TextField
+            label="Short description"
+            value={form.shortDesc}
+            onChange={(v) => set("shortDesc", v)}
+          />
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Full description</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              Full description
+            </label>
             <textarea
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
@@ -551,14 +646,38 @@ function ProductEditor({
               className="w-full rounded-lg border border-charcoal/15 bg-white/60 px-3 py-2 text-sm focus:border-pink-strong focus:outline-none"
             />
           </div>
-          <TextField label="Colours (comma separated)" value={form.colors} onChange={(v) => set("colors", v)} />
-          <TextField label="Sizes / options (comma separated)" value={form.sizes} onChange={(v) => set("sizes", v)} />
-          <TextField label="Materials (comma separated)" value={form.materials} onChange={(v) => set("materials", v)} />
+          <TextField
+            label="Colours (comma separated)"
+            value={form.colors}
+            onChange={(v) => set("colors", v)}
+          />
+          <TextField
+            label="Sizes / options (comma separated)"
+            value={form.sizes}
+            onChange={(v) => set("sizes", v)}
+          />
+          <TextField
+            label="Materials (comma separated)"
+            value={form.materials}
+            onChange={(v) => set("materials", v)}
+          />
 
           <div className="flex flex-wrap gap-4">
-            <Toggle label="Featured" checked={form.featured} onChange={(v) => set("featured", v)} />
-            <Toggle label="Made to order" checked={form.bespoke} onChange={(v) => set("bespoke", v)} />
-            <Toggle label="Published" checked={form.published} onChange={(v) => set("published", v)} />
+            <Toggle
+              label="Featured"
+              checked={form.featured}
+              onChange={(v) => set("featured", v)}
+            />
+            <Toggle
+              label="Made to order"
+              checked={form.bespoke}
+              onChange={(v) => set("bespoke", v)}
+            />
+            <Toggle
+              label="Published"
+              checked={form.published}
+              onChange={(v) => set("published", v)}
+            />
           </div>
 
           {error && <p className="text-sm text-coral">{error}</p>}
@@ -570,7 +689,13 @@ function ProductEditor({
             disabled={saving || !form.name}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-pink-strong font-medium text-white disabled:opacity-60"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : form.id ? "Save changes" : "Create product"}
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : form.id ? (
+              "Save changes"
+            ) : (
+              "Create product"
+            )}
           </button>
         </div>
       </motion.div>
@@ -629,13 +754,13 @@ function Toggle({
       <span
         className={cn(
           "inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
-          checked ? "bg-pink-strong" : "bg-charcoal/20"
+          checked ? "bg-pink-strong" : "bg-charcoal/20",
         )}
       >
         <span
           className={cn(
             "h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200",
-            checked ? "translate-x-5" : "translate-x-0"
+            checked ? "translate-x-5" : "translate-x-0",
           )}
         />
       </span>

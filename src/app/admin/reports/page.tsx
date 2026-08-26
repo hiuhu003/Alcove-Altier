@@ -6,7 +6,7 @@ import { buildSalesReport } from "@/lib/reports";
 export const dynamic = "force-dynamic";
 
 export default async function AdminReportsPage() {
-  await requireAdmin();
+  await requireAdmin("/admin/reports");
   // Monthly × 12 is the default view; the client can switch to weekly/yearly.
   const report = await buildSalesReport("monthly", 12);
 

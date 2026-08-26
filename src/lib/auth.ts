@@ -1,7 +1,7 @@
 import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 /**
  * Admin authentication.
@@ -93,21 +93,41 @@ export function verifySessionToken(token: string | undefined): boolean {
   return Number.isFinite(expiresAt) && expiresAt > Date.now();
 }
 
-/** True if the current request carries a valid admin session. */
+/**
+ * True if the current request carries admin rights.
+ *
+ * Either the admin cookie (set when an admin signs in, and by the
+ * shared-password fallback at /admin/login) or a signed-in account whose role
+ * is admin. Checking both means promoting someone takes effect on their next
+ * request rather than only after they sign in again.
+ */
 export async function isAdmin(): Promise<boolean> {
   const store = await cookies();
-  return verifySessionToken(store.get(COOKIE)?.value);
+  if (verifySessionToken(store.get(COOKIE)?.value)) return true;
+
+  const { getCurrentUser, isAdminRole } = await import("./users");
+  const user = await getCurrentUser();
+  return isAdminRole(user?.role);
 }
 
 /**
- * Redirects to the sign-in page if not authenticated (for server pages).
+ * Gate for admin pages.
  *
- * Admins sign in through the same form as customers - their role is what sends
- * them here rather than to /account. /admin/login remains as a shared-password
- * fallback in case no admin account exists yet.
+ * Nobody signed in -> send them to sign in, remembering where they were headed.
+ *
+ * Signed in but not an admin -> 404, not "forbidden". A 403 confirms the page
+ * exists, which tells a curious customer exactly what to go looking for; a 404
+ * says nothing at all. It is also less confusing than bouncing an already
+ * signed-in person back to a sign-in form they have already used.
  */
-export async function requireAdmin(): Promise<void> {
-  if (!(await isAdmin())) redirect("/signin?next=/admin");
+export async function requireAdmin(nextPath = "/admin"): Promise<void> {
+  if (await isAdmin()) return;
+
+  const { getCurrentUser } = await import("./users");
+  const user = await getCurrentUser();
+  if (user) notFound();
+
+  redirect(`/signin?next=${encodeURIComponent(nextPath)}`);
 }
 
 /** For API routes: returns true if authorised. */

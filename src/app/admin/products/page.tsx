@@ -14,7 +14,7 @@ export default async function AdminProductsPage({
 }: {
   searchParams: Promise<{ q?: string; stock?: string }>;
 }) {
-  await requireAdmin();
+  await requireAdmin("/admin/products");
   const { q, stock } = await searchParams;
 
   return (

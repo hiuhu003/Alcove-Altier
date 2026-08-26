@@ -172,7 +172,14 @@ export async function authenticate(
   };
 }
 
-/** Where a user lands after signing in. */
+/**
+ * Where a user lands after signing in.
+ *
+ * Admins go to the storefront, not straight into the dashboard - most sign-ins
+ * are to shop or to check the site the way a customer sees it. The dashboard is
+ * one click away in the account menu. An explicit ?next= still wins, so
+ * following a link into /admin lands there after signing in.
+ */
 export function landingPageFor(user: SessionUser): string {
-  return isAdminRole(user.role) ? "/admin" : "/account";
+  return isAdminRole(user.role) ? "/" : "/account";
 }
