@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Alcove Atelier">
+  <!--
+    Tab icon: the arched-A monogram from components/Logo.tsx, redrawn for the
+    favicon. The site logo's hairline strokes and swash disappear below about
+    24px, so the arch is heavier here, the A is wider, and the swash is dropped
+    for a plain crossbar. The blush tile keeps it legible on the dark tab bars
+    most browsers now use, where a charcoal mark on transparency would vanish.
+  -->
+  <rect width="64" height="64" rx="14" fill="#F2C4CE"/>
+  <g fill="none" stroke="#2C2B30" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M13 53 V29 a19 19 0 0 1 38 0 V53"/>
+    <path d="M32 25 L22 49"/>
+    <path d="M32 25 L42 49"/>
+    <path d="M25 43 H39"/>
+  </g>
+</svg>

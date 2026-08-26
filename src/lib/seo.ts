@@ -54,7 +54,6 @@ export const baseMetadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-  icons: { icon: "/favicon.ico", apple: "/favicon.ico" },
   // Search Console / Bing ownership — set these env vars when the client verifies.
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
