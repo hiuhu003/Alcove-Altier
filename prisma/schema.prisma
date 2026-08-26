@@ -1,0 +1,134 @@
+// Alcove Atelier data model.
+//
+// Postgres (Supabase in production). Two URLs are used:
+//   DATABASE_URL — the pooled connection (PgBouncer, port 6543). Used at
+//                  runtime by serverless functions, which must not hold
+//                  long-lived connections.
+//   DIRECT_URL   — the direct connection (port 5432). Used by the Prisma CLI
+//                  for `migrate deploy` / `db push`, which need a real session.
+//
+// String array columns are stored as JSON strings (helpers in
+// src/lib/products.ts parse them) — kept from the original SQLite schema so the
+// seed catalogue and admin editor need no changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  category    String
+  price       Int
+  compareAt   Int?
+  shortDesc   String
+  description String
+  images      String // JSON string[]
+  colors      String // JSON string[]
+  sizes       String // JSON string[]
+  materials   String? // JSON string[]
+  featured    Boolean  @default(false)
+  bespoke     Boolean  @default(false)
+  inStock     Int      @default(0)
+  rating      Float    @default(5)
+  reviews     Int      @default(0)
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@index([published, createdAt])
+  @@index([category])
+  @@index([bespoke, inStock])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  blurb     String   @default("")
+  image     String   @default("")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  ref           String   @unique
+  customerName  String
+  email         String
+  phone         String
+  address       String?
+  city          String?
+  notes         String?
+  channel       String // "whatsapp" | "mpesa" | "stripe" | "paypal" | "cod"
+  paymentStatus String   @default("pending") // pending | paid | failed
+  paymentRef    String?
+  total         Int // goods subtotal (delivery is quoted separately)
+  status        String   @default("new") // new | confirmed | fulfilled | cancelled
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // --- Delivery ---
+  // "nairobi" = Nairobi & environs (we deliver; pay on delivery available)
+  // "outside" = rest of Kenya (courier; fee depends on the destination)
+  deliveryZone  String   @default("nairobi")
+  deliveryArea  String? // estate / town the customer typed
+  deliveryFee   Int      @default(0) // 0 = not quoted yet; set by admin
+  payOnDelivery Boolean  @default(false)
+
+  items OrderItem[]
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([deliveryZone])
+}
+
+/// Admin alerts — new orders, payments received, stock running out.
+/// `dedupeKey` keeps repeated conditions (e.g. "Mirror X is out of stock")
+/// from stacking up: it is unique, so re-raising is a no-op until cleared.
+model Notification {
+  id        String   @id @default(cuid())
+  type      String // order.new | order.paid | stock.out | stock.low
+  level     String   @default("info") // info | warning | critical
+  title     String
+  body      String   @default("")
+  href      String?
+  dedupeKey String?  @unique
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  name      String
+  color     String?
+  size      String?
+  price     Int
+  qty       Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Subscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
