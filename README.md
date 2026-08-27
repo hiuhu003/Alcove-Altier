@@ -127,7 +127,9 @@ The client can, without touching code:
 - **Reports:** weekly / monthly / yearly sales reports (see below).
 - **Alerts:** the bell in the header (see below).
 
-Set a strong `ADMIN_PASSWORD` before launch.
+Admin rights come from an account's role. Create the first admin with
+`npm run make:admin`, then add colleagues from **Team** inside the dashboard —
+they're emailed their sign-in details.
 
 ---
 
