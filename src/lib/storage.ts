@@ -1,6 +1,7 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { slugify } from "./utils";
+import { normaliseImage, type ImageKind } from "./images";
 
 /**
  * Product image storage.
@@ -24,7 +25,9 @@ const ALLOWED = new Map<string, string>([
 
 export const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
 
-export type UploadResult = { ok: true; url: string } | { ok: false; error: string };
+export type UploadResult =
+  | { ok: true; url: string; width: number; height: number; padded: boolean }
+  | { ok: false; error: string };
 
 export function isSupabaseStorageConfigured(): boolean {
   return Boolean(
@@ -38,16 +41,15 @@ export function isSupabaseStorageConfigured(): boolean {
  * in on a mislabelled upload (SVG is excluded deliberately — it can carry
  * script and would be served from our own origin).
  */
-function validate(file: File): { ext: string } | { error: string } {
-  const ext = ALLOWED.get(file.type);
-  if (!ext) {
+function validate(file: File): { ok: true } | { error: string } {
+  if (!ALLOWED.has(file.type)) {
     return { error: "Please upload a JPG, PNG, WebP, AVIF or GIF image." };
   }
   if (file.size <= 0) return { error: "That file is empty." };
   if (file.size > MAX_UPLOAD_BYTES) {
     return { error: `Images must be under ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.` };
   }
-  return { ext };
+  return { ok: true };
 }
 
 /** A safe, collision-proof object name — no client-controlled path segments. */
@@ -56,24 +58,50 @@ function objectName(originalName: string, ext: string): string {
   return `${base}-${randomBytes(6).toString("hex")}.${ext}`;
 }
 
-export async function storeImage(file: File): Promise<UploadResult> {
+export async function storeImage(
+  file: File,
+  kind: ImageKind = "product"
+): Promise<UploadResult> {
   const checked = validate(file);
   if ("error" in checked) return { ok: false, error: checked.error };
 
-  const name = objectName(file.name, checked.ext);
-  const bytes = Buffer.from(await file.arrayBuffer());
+  const original = Buffer.from(await file.arrayBuffer());
 
-  if (isSupabaseStorageConfigured()) {
-    return uploadToSupabase(name, bytes, file.type);
+  // Re-render to the shape the storefront displays. Everything downstream then
+  // deals with one predictable format.
+  let image;
+  try {
+    image = await normaliseImage(original, kind);
+  } catch (err) {
+    console.error("[storage] could not process image:", err);
+    return {
+      ok: false,
+      error: "That image couldn't be processed. Try a JPG or PNG exported from your photo app.",
+    };
   }
-  return uploadToDisk(name, bytes);
+
+  const name = objectName(file.name, image.extension);
+  const stored = isSupabaseStorageConfigured()
+    ? await uploadToSupabase(name, image.data, image.contentType)
+    : await uploadToDisk(name, image.data);
+
+  if (!stored.ok) return stored;
+  return {
+    ok: true,
+    url: stored.url,
+    width: image.width,
+    height: image.height,
+    padded: image.padded,
+  };
 }
+
+type StoreResult = { ok: true; url: string } | { ok: false; error: string };
 
 async function uploadToSupabase(
   name: string,
   bytes: Buffer,
   contentType: string
-): Promise<UploadResult> {
+): Promise<StoreResult> {
   const { createClient } = await import("@supabase/supabase-js");
   // The service-role key bypasses row-level security, so it must never leave
   // the server — it is read here and nowhere else.
@@ -96,7 +124,7 @@ async function uploadToSupabase(
   return { ok: true, url: data.publicUrl };
 }
 
-async function uploadToDisk(name: string, bytes: Buffer): Promise<UploadResult> {
+async function uploadToDisk(name: string, bytes: Buffer): Promise<StoreResult> {
   if (process.env.NODE_ENV === "production") {
     return {
       ok: false,

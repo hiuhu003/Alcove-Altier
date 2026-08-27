@@ -108,6 +108,13 @@ Everything else is optional — those features degrade gracefully.
 ## 🖥️ Admin CMS (`/admin`)
 
 The client can, without touching code:
+- **Images:** upload any size or shape — every photo is re-rendered server-side
+  to a standard size so the shop stays uniform: **1200×1500 (4:5)** for products,
+  **1500×900 (5:3)** for categories. Photos close to the target are cropped
+  edge-to-edge; ones far off (a wide rug shot in a portrait frame) are fitted on
+  a cream background instead of being butchered. Output is WebP, EXIF rotation
+  is applied and location metadata stripped. Presets live in `src/lib/images.ts`
+  and must match the Tailwind `aspect-[…]` classes on the storefront.
 - **Products:** add/edit/delete, upload or paste image URLs, set price, stock,
   colours, sizes, materials, and toggle *Featured / Made-to-order / Published*.
   Filter by **All products / Needs restock / Out of stock** — the dashboard

@@ -142,12 +142,24 @@ function CategoryEditor({
 
   async function upload(file: File) {
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.url) setForm((f) => ({ ...f, image: data.url }));
-    setUploading(false);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      // Category tiles are wide, so these render to 5:3 rather than 4:5.
+      fd.append("kind", "category");
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        setError(data.error ?? "That image couldn't be uploaded.");
+        return;
+      }
+      setForm((f) => ({ ...f, image: data.url }));
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save() {
@@ -215,6 +227,10 @@ function CategoryEditor({
                 <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
               </label>
             </div>
+            <p className="mt-2 text-xs text-graphite">
+              Any size or shape is fine — category photos are resized to a
+              standard 1500×900 (5:3 landscape).
+            </p>
             <input
               value={form.image}
               onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}

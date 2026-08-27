@@ -404,6 +404,7 @@ function ProductEditor({
   );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [framingNote, setFramingNote] = useState<string | null>(null);
   const [imgUrl, setImgUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -430,12 +431,33 @@ function ProductEditor({
 
   async function upload(file: File) {
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.url) set("images", [...form.images, data.url]);
-    setUploading(false);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      // Rendered to the 4:5 shape the product cards and gallery use.
+      fd.append("kind", "product");
+      const res = await fetch("/api/admin/upload", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        // Previously a rejected upload just stopped the spinner and said
+        // nothing, which read as "the button is broken".
+        setError(data.error ?? "That image couldn't be uploaded.");
+        return;
+      }
+      set("images", [...form.images, data.url]);
+      // Padding means the photo was far from 4:5 and was fitted rather than
+      // cropped - worth saying, because re-shooting or cropping looks better.
+      setFramingNote(
+        data.padded
+          ? "That photo was a very different shape to the 4:5 product frame, so it was fitted with a cream border. Crop it closer to 4:5 (portrait) for a full-bleed look."
+          : null,
+      );
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   async function save() {
@@ -561,6 +583,15 @@ function ProductEditor({
                 />
               </label>
             </div>
+            <p className="mt-2 text-xs text-graphite">
+              Any size or shape is fine — every photo is resized to a standard
+              1200×1500 (4:5 portrait) so the shop stays uniform.
+            </p>
+            {framingNote && (
+              <p className="mt-2 rounded-lg bg-blush/30 px-3 py-2 text-xs text-charcoal">
+                {framingNote}
+              </p>
+            )}
             <div className="mt-2 flex gap-2">
               <input
                 value={imgUrl}
